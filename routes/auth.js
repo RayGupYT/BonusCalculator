@@ -47,6 +47,15 @@ router.post('/register', authLimiter, async (req, res, next) => {
     const normalizedEmail = email.trim().toLowerCase();
     const existing = await User.findOne({ email: normalizedEmail });
     if (existing) {
+      if (existing.email !== normalizedEmail) {
+        // A lookup for one email must never return another; fail loudly.
+        console.error(
+          `register: findOne(${normalizedEmail}) returned a different doc (${existing.email})`
+        );
+        return res
+          .status(500)
+          .json({ error: 'Registration lookup failed [diag: lookup-mismatch]' });
+      }
       return res
         .status(409)
         .json({ error: 'An account with that email already exists' });
@@ -61,9 +70,20 @@ router.post('/register', authLimiter, async (req, res, next) => {
     res.status(201).json({ token: signToken(user), user: user.toSafeJSON() });
   } catch (err) {
     if (err.code === 11000) {
-      return res
-        .status(409)
-        .json({ error: 'An account with that email already exists' });
+      // Only report an email conflict when the email index is what collided;
+      // a duplicate on any other (stray) index is a server problem, not the user's.
+      const dupFields = Object.keys(err.keyPattern || {});
+      if (dupFields.length === 0 || dupFields.includes('email')) {
+        return res
+          .status(409)
+          .json({ error: 'An account with that email already exists' });
+      }
+      console.error(
+        `register: duplicate-key error on non-email index; keyPattern=${JSON.stringify(err.keyPattern)} keyValue=${JSON.stringify(err.keyValue)}`
+      );
+      return res.status(500).json({
+        error: `Registration failed [diag: stray unique index on "${dupFields.join(',')}"]`,
+      });
     }
     next(err);
   }
