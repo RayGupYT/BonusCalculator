@@ -842,6 +842,35 @@ h1, h2, h3, p {
   }
 }
 
+/* ---------- Change password dialog ---------- */
+.pw-dialog {
+  border: 1px solid var(--border);
+  border-radius: 14px;
+  background: var(--surface);
+  color: var(--ink);
+  box-shadow: var(--shadow);
+  padding: 24px;
+  width: min(360px, 90vw);
+}
+
+.pw-dialog::backdrop {
+  background: rgba(0, 0, 0, 0.45);
+}
+
+.pw-dialog h3 {
+  font-size: 17px;
+  font-weight: 650;
+  letter-spacing: -0.01em;
+  margin-bottom: 16px;
+}
+
+.pw-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+  margin-top: 6px;
+}
+
 .visually-hidden {
   position: absolute;
   width: 1px;

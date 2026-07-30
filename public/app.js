@@ -15,6 +15,15 @@
     submit: document.getElementById('auth-submit'),
     userEmail: document.getElementById('user-email'),
     logout: document.getElementById('btn-logout'),
+    btnPassword: document.getElementById('btn-password'),
+    pwDialog: document.getElementById('pw-dialog'),
+    pwForm: document.getElementById('pw-form'),
+    pwCurrent: document.getElementById('pw-current'),
+    pwNew: document.getElementById('pw-new'),
+    pwConfirm: document.getElementById('pw-confirm'),
+    pwError: document.getElementById('pw-error'),
+    pwSuccess: document.getElementById('pw-success'),
+    pwCancel: document.getElementById('pw-cancel'),
     pageEmployees: document.getElementById('page-employees'),
     employeeForm: document.getElementById('employee-form'),
     employeeName: document.getElementById('employee-name'),
@@ -63,6 +72,7 @@
   let mode = 'login'; // 'login' | 'signup'
   let currentProject = null; // { employeeId, projectId, revenue: [{year, month, amount}] }
   let currentEmployeeId = null;
+  let currentUser = null;
 
   const money = new Intl.NumberFormat('en-US', {
     style: 'currency',
@@ -154,6 +164,7 @@
   }
 
   function showApp(user) {
+    currentUser = user;
     els.viewAuth.hidden = true;
     els.viewApp.hidden = false;
     els.userEmail.textContent = user.email;
@@ -954,8 +965,64 @@
 
   els.logout.addEventListener('click', () => {
     localStorage.removeItem(TOKEN_KEY);
+    currentUser = null;
     setMode('login');
     showAuth();
+  });
+
+  // ---------- Change password dialog ----------
+
+  els.btnPassword.addEventListener('click', () => {
+    els.pwForm.reset();
+    els.pwError.hidden = true;
+    els.pwSuccess.hidden = true;
+    els.pwDialog.showModal();
+    els.pwCurrent.focus();
+  });
+
+  els.pwCancel.addEventListener('click', () => {
+    els.pwDialog.close();
+  });
+
+  els.pwForm.addEventListener('submit', async (event) => {
+    event.preventDefault();
+    els.pwError.hidden = true;
+    els.pwSuccess.hidden = true;
+
+    const currentPassword = els.pwCurrent.value;
+    const newPassword = els.pwNew.value;
+
+    function showPwError(message) {
+      els.pwError.textContent = message;
+      els.pwError.hidden = false;
+    }
+
+    if (!currentPassword) return showPwError('Enter your current password.');
+    if (newPassword.length < 8)
+      return showPwError('New password must be at least 8 characters.');
+    if (newPassword !== els.pwConfirm.value)
+      return showPwError('New passwords do not match.');
+
+    const button = els.pwForm.querySelector('button[type="submit"]');
+    button.disabled = true;
+    try {
+      await api('/api/auth/change-password', {
+        method: 'POST',
+        body: { currentPassword, newPassword },
+      });
+      if (currentUser) offerCredentialSave(currentUser.email, newPassword);
+      els.pwForm.reset();
+      els.pwSuccess.hidden = false;
+      setTimeout(() => els.pwDialog.close(), 1200);
+    } catch (err) {
+      if (handleSessionExpiry(err)) {
+        els.pwDialog.close();
+        return;
+      }
+      showPwError(err.message);
+    } finally {
+      button.disabled = false;
+    }
   });
 
   // ---------- Init ----------

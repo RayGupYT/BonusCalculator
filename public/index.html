@@ -49,9 +49,34 @@
       <div class="topbar-brand"><span aria-hidden="true">💠</span> Bonus Calculator</div>
       <div class="topbar-user">
         <span id="user-email" class="user-email"></span>
+        <button type="button" class="btn btn-ghost" id="btn-password">Change password</button>
         <button type="button" class="btn btn-ghost" id="btn-logout">Log out</button>
       </div>
     </header>
+
+    <dialog id="pw-dialog" class="pw-dialog">
+      <form id="pw-form" novalidate>
+        <h3>Change password</h3>
+        <div class="field">
+          <label for="pw-current">Current password</label>
+          <input id="pw-current" type="password" autocomplete="current-password" required />
+        </div>
+        <div class="field">
+          <label for="pw-new">New password</label>
+          <input id="pw-new" type="password" autocomplete="new-password" required minlength="8" placeholder="At least 8 characters" />
+        </div>
+        <div class="field">
+          <label for="pw-confirm">Confirm new password</label>
+          <input id="pw-confirm" type="password" autocomplete="new-password" required />
+        </div>
+        <p id="pw-error" class="form-error" role="alert" hidden></p>
+        <p id="pw-success" class="save-note" hidden>Password changed</p>
+        <div class="pw-actions">
+          <button type="button" class="btn btn-ghost btn-compact" id="pw-cancel">Cancel</button>
+          <button type="submit" class="btn btn-primary btn-compact">Change password</button>
+        </div>
+      </form>
+    </dialog>
 
     <!-- Page: employees hierarchy -->
     <main class="home-wrap" id="page-employees">
