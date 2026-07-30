@@ -9,6 +9,9 @@ const router = express.Router();
 
 router.use(requireAuth);
 
+// Bonus earned per dollar of revenue above the threshold (1.5 cents).
+const BONUS_RATE = 0.015;
+
 function validName(value, maxLength) {
   return (
     typeof value === 'string' && value.trim().length > 0 && value.trim().length <= maxLength
@@ -285,9 +288,25 @@ router.get('/:employeeId/summary', async (req, res, next) => {
       };
     });
 
+    const dialMin = employee.dialMin ?? 0;
+    const dialMax = employee.dialMax ?? 1000000;
+    const thresholdPct = employee.thresholdPct ?? 100;
+
+    const total = round2(totalRevenue);
+    const thresholdValue = round2(dialMin + (dialMax - dialMin) * (thresholdPct / 100));
+    const bonus = round2(Math.max(0, total - thresholdValue) * BONUS_RATE);
+
     res.json({
       employee: { id: employee._id.toString(), name: employee.name },
-      totalRevenue: round2(totalRevenue),
+      totalRevenue: total,
+      settings: { dialMin, dialMax, thresholdPct },
+      computed: {
+        thresholdValue,
+        bonusStarted: total >= thresholdValue,
+        bonus,
+        remainingToBonus: round2(Math.max(0, thresholdValue - total)),
+        bonusRate: BONUS_RATE,
+      },
       monthlyTotals: [...monthTotals.entries()]
         .sort((a, b) => a[0] - b[0])
         .map(([key, total]) => ({
@@ -296,6 +315,50 @@ router.get('/:employeeId/summary', async (req, res, next) => {
           total: round2(total),
         })),
       projects: projectSummaries,
+    });
+  } catch (err) {
+    next(err);
+  }
+});
+
+// Update the bonus dial settings for an employee.
+router.patch('/:employeeId', async (req, res, next) => {
+  try {
+    const employee = await findOwnedEmployee(req, res);
+    if (!employee) return;
+
+    const { dialMin, dialMax, thresholdPct } = req.body || {};
+    const values = [dialMin, dialMax, thresholdPct];
+    if (values.some((v) => typeof v !== 'number' || !Number.isFinite(v))) {
+      return res
+        .status(400)
+        .json({ error: 'Min, max, and threshold must all be numbers' });
+    }
+    if (dialMin < 0 || dialMax > 1e12) {
+      return res
+        .status(400)
+        .json({ error: 'Min must be at least 0 (and max within reason)' });
+    }
+    if (dialMax <= dialMin) {
+      return res.status(400).json({ error: 'Max must be greater than min' });
+    }
+    if (thresholdPct < 0 || thresholdPct > 100) {
+      return res
+        .status(400)
+        .json({ error: 'Threshold must be between 0 and 100 percent' });
+    }
+
+    employee.dialMin = round2(dialMin);
+    employee.dialMax = round2(dialMax);
+    employee.thresholdPct = round2(thresholdPct);
+    await employee.save();
+
+    res.json({
+      settings: {
+        dialMin: employee.dialMin,
+        dialMax: employee.dialMax,
+        thresholdPct: employee.thresholdPct,
+      },
     });
   } catch (err) {
     next(err);

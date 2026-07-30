@@ -40,7 +40,14 @@
     backEmployeeBtn: document.getElementById('btn-back-employee'),
     employeeError: document.getElementById('employee-error'),
     employeeTitle: document.getElementById('employee-title'),
-    employeeTotal: document.getElementById('employee-total'),
+    dial: document.getElementById('dial'),
+    dialStatus: document.getElementById('dial-status'),
+    dialForm: document.getElementById('dial-form'),
+    dialMin: document.getElementById('dial-min'),
+    dialMax: document.getElementById('dial-max'),
+    dialPct: document.getElementById('dial-pct'),
+    dialHint: document.getElementById('dial-hint'),
+    dialSaveNote: document.getElementById('dial-save-note'),
     employeeMonths: document.getElementById('employee-months'),
     employeeMonthsEmpty: document.getElementById('employee-months-empty'),
     employeeProjects: document.getElementById('employee-projects'),
@@ -49,10 +56,18 @@
 
   let mode = 'login'; // 'login' | 'signup'
   let currentProject = null; // { employeeId, projectId, revenue: [{year, month, amount}] }
+  let currentEmployeeId = null;
 
   const money = new Intl.NumberFormat('en-US', {
     style: 'currency',
     currency: 'USD',
+  });
+
+  const moneyCompact = new Intl.NumberFormat('en-US', {
+    style: 'currency',
+    currency: 'USD',
+    notation: 'compact',
+    maximumFractionDigits: 2,
   });
 
   function monthLabel(year, month) {
@@ -124,6 +139,7 @@
 
   function showEmployeesPage() {
     currentProject = null;
+    currentEmployeeId = null;
     els.pageProject.hidden = true;
     els.pageEmployee.hidden = true;
     els.pageEmployees.hidden = false;
@@ -153,31 +169,199 @@
   }
 
   async function openEmployee(employeeId) {
+    const alreadyOpen = !els.pageEmployee.hidden;
     try {
       const data = await api(`/api/employees/${employeeId}/summary`);
 
-      els.employeeTitle.textContent = data.employee.name;
-      els.employeeTotal.textContent = money.format(data.totalRevenue);
-
-      els.employeeMonths.replaceChildren(
-        ...data.monthlyTotals.map((m) =>
-          summaryRow(monthLabel(m.year, m.month), money.format(m.total))
-        )
-      );
-      els.employeeMonthsEmpty.hidden = data.monthlyTotals.length > 0;
-
-      els.employeeProjects.replaceChildren(
-        ...data.projects.map((p) => summaryRow(p.name, money.format(p.total)))
-      );
-      els.employeeProjectsEmpty.hidden = data.projects.length > 0;
+      currentEmployeeId = employeeId;
+      renderEmployeeDash(data);
 
       els.employeeError.hidden = true;
       els.pageEmployees.hidden = true;
       els.pageProject.hidden = true;
       els.pageEmployee.hidden = false;
     } catch (err) {
-      if (!handleSessionExpiry(err)) showHomeError(err.message);
+      if (handleSessionExpiry(err)) return;
+      if (alreadyOpen) showEmployeeError(err.message);
+      else showHomeError(err.message);
     }
+  }
+
+  function renderEmployeeDash(data) {
+    els.employeeTitle.textContent = data.employee.name;
+
+    renderDial(data);
+    renderDialStatus(data.computed);
+
+    els.dialMin.value = String(data.settings.dialMin);
+    els.dialMax.value = String(data.settings.dialMax);
+    els.dialPct.value = String(data.settings.thresholdPct);
+    els.dialSaveNote.hidden = true;
+    updateDialHint();
+
+    els.employeeMonths.replaceChildren(
+      ...data.monthlyTotals.map((m) =>
+        summaryRow(monthLabel(m.year, m.month), money.format(m.total))
+      )
+    );
+    els.employeeMonthsEmpty.hidden = data.monthlyTotals.length > 0;
+
+    els.employeeProjects.replaceChildren(
+      ...data.projects.map((p) => summaryRow(p.name, money.format(p.total)))
+    );
+    els.employeeProjectsEmpty.hidden = data.projects.length > 0;
+  }
+
+  // ---------- Bonus dial (SVG gauge) ----------
+
+  const SVG_NS = 'http://www.w3.org/2000/svg';
+  const DIAL = { cx: 110, cy: 96, r: 78, start: -120, sweep: 240 };
+
+  function svgEl(name, attrs = {}) {
+    const node = document.createElementNS(SVG_NS, name);
+    for (const [key, value] of Object.entries(attrs)) {
+      node.setAttribute(key, value);
+    }
+    return node;
+  }
+
+  function dialPoint(angle, radius = DIAL.r) {
+    const rad = (angle * Math.PI) / 180;
+    return [
+      DIAL.cx + radius * Math.sin(rad),
+      DIAL.cy - radius * Math.cos(rad),
+    ];
+  }
+
+  function arcPath(a0, a1) {
+    const [x0, y0] = dialPoint(a0);
+    const [x1, y1] = dialPoint(a1);
+    const large = a1 - a0 > 180 ? 1 : 0;
+    return `M ${x0.toFixed(2)} ${y0.toFixed(2)} A ${DIAL.r} ${DIAL.r} 0 ${large} 1 ${x1.toFixed(2)} ${y1.toFixed(2)}`;
+  }
+
+  function renderDial(data) {
+    const { dialMin, dialMax, thresholdPct } = data.settings;
+    const total = data.totalRevenue;
+    const span = dialMax - dialMin;
+    const pct = span > 0 ? Math.min(1, Math.max(0, (total - dialMin) / span)) : 0;
+    const tpct = Math.min(1, Math.max(0, thresholdPct / 100));
+    const angleAt = (p) => DIAL.start + DIAL.sweep * p;
+
+    const svg = els.dial;
+    svg.replaceChildren();
+    svg.setAttribute(
+      'aria-label',
+      `Combined revenue ${money.format(total)} on a scale from ${money.format(dialMin)} to ${money.format(dialMax)}; bonus threshold at ${money.format(data.computed.thresholdValue)}`
+    );
+
+    svg.append(svgEl('path', { d: arcPath(angleAt(0), angleAt(1)), class: 'dial-track' }));
+
+    if (pct > 0.002) {
+      svg.append(
+        svgEl('path', {
+          d: arcPath(angleAt(0), angleAt(Math.min(pct, tpct))),
+          class: 'dial-fill',
+        })
+      );
+    }
+    if (pct > tpct + 0.002) {
+      svg.append(
+        svgEl('path', { d: arcPath(angleAt(tpct), angleAt(pct)), class: 'dial-bonus' })
+      );
+    }
+
+    const [tx0, ty0] = dialPoint(angleAt(tpct), DIAL.r - 12);
+    const [tx1, ty1] = dialPoint(angleAt(tpct), DIAL.r + 12);
+    svg.append(
+      svgEl('line', {
+        x1: tx0.toFixed(2),
+        y1: ty0.toFixed(2),
+        x2: tx1.toFixed(2),
+        y2: ty1.toFixed(2),
+        class: 'dial-tick',
+      })
+    );
+
+    const value = svgEl('text', {
+      x: DIAL.cx,
+      y: 94,
+      'text-anchor': 'middle',
+      class: 'dial-value',
+    });
+    value.textContent = moneyCompact.format(total);
+    svg.append(value);
+
+    const sub = svgEl('text', {
+      x: DIAL.cx,
+      y: 114,
+      'text-anchor': 'middle',
+      class: 'dial-sub',
+    });
+    sub.textContent = 'combined revenue';
+    svg.append(sub);
+
+    const [minX] = dialPoint(angleAt(0));
+    const [maxX] = dialPoint(angleAt(1));
+    const minLabel = svgEl('text', {
+      x: minX.toFixed(2),
+      y: 154,
+      'text-anchor': 'middle',
+      class: 'dial-minmax',
+    });
+    minLabel.textContent = moneyCompact.format(dialMin);
+    const maxLabel = svgEl('text', {
+      x: maxX.toFixed(2),
+      y: 154,
+      'text-anchor': 'middle',
+      class: 'dial-minmax',
+    });
+    maxLabel.textContent = moneyCompact.format(dialMax);
+    svg.append(minLabel, maxLabel);
+  }
+
+  function renderDialStatus(computed) {
+    els.dialStatus.classList.toggle('is-bonus', computed.bonusStarted);
+    if (computed.bonusStarted) {
+      els.dialStatus.textContent = `Bonus value: ${money.format(computed.bonus)} — earning 1.5¢ per $1 above ${moneyCompact.format(computed.thresholdValue)}`;
+    } else {
+      els.dialStatus.textContent = `Bonus starts at ${money.format(computed.thresholdValue)} — ${money.format(computed.remainingToBonus)} to go`;
+    }
+  }
+
+  function readDialInputs() {
+    const min = Number(els.dialMin.value);
+    const max = Number(els.dialMax.value);
+    const pct = Number(els.dialPct.value);
+    if (
+      els.dialMin.value.trim() === '' ||
+      els.dialMax.value.trim() === '' ||
+      els.dialPct.value.trim() === '' ||
+      !Number.isFinite(min) ||
+      !Number.isFinite(max) ||
+      !Number.isFinite(pct)
+    ) {
+      return null;
+    }
+    if (min < 0 || max <= min || pct < 0 || pct > 100) return null;
+    return { dialMin: min, dialMax: max, thresholdPct: pct };
+  }
+
+  function updateDialHint() {
+    const values = readDialInputs();
+    if (!values) {
+      els.dialHint.textContent =
+        'Bonus starts at min + (max − min) × threshold%. Max must be greater than min.';
+      return;
+    }
+    const threshold =
+      values.dialMin + (values.dialMax - values.dialMin) * (values.thresholdPct / 100);
+    els.dialHint.textContent = `Bonus will start at ${money.format(threshold)} and earn 1.5¢ per $1 above it.`;
+  }
+
+  function showEmployeeError(message) {
+    els.employeeError.textContent = message;
+    els.employeeError.hidden = false;
   }
 
   function summaryRow(label, value) {
@@ -422,6 +606,44 @@
 
   els.clientName.addEventListener('input', () => {
     els.saveNote.hidden = true;
+  });
+
+  // ---------- Employee dashboard: dial settings ----------
+
+  for (const input of [els.dialMin, els.dialMax, els.dialPct]) {
+    input.addEventListener('input', () => {
+      els.dialSaveNote.hidden = true;
+      updateDialHint();
+    });
+  }
+
+  els.dialForm.addEventListener('submit', async (event) => {
+    event.preventDefault();
+    if (!currentEmployeeId) return;
+
+    const values = readDialInputs();
+    if (!values) {
+      return showEmployeeError(
+        'Check the dial settings: min ≥ 0, max greater than min, threshold between 0 and 100.'
+      );
+    }
+
+    const button = els.dialForm.querySelector('button[type="submit"]');
+    button.disabled = true;
+    try {
+      await api(`/api/employees/${currentEmployeeId}`, {
+        method: 'PATCH',
+        body: values,
+      });
+      els.employeeError.hidden = true;
+      els.dialSaveNote.hidden = false;
+      await openEmployee(currentEmployeeId);
+      els.dialSaveNote.hidden = false;
+    } catch (err) {
+      if (!handleSessionExpiry(err)) showEmployeeError(err.message);
+    } finally {
+      button.disabled = false;
+    }
   });
 
   // ---------- Project dashboard: monthly revenue ----------

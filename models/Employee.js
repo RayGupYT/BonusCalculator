@@ -14,6 +14,10 @@ const employeeSchema = new mongoose.Schema(
       trim: true,
       maxlength: 80,
     },
+    // Bonus dial settings: bonus starts at dialMin + (dialMax - dialMin) * thresholdPct/100.
+    dialMin: { type: Number, min: 0, default: 0 },
+    dialMax: { type: Number, min: 0, default: 1000000 },
+    thresholdPct: { type: Number, min: 0, max: 100, default: 100 },
   },
   { timestamps: true }
 );

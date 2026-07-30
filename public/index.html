@@ -127,8 +127,33 @@
         <p class="crumb">Employee</p>
         <h2 class="project-title" id="employee-title"></h2>
 
-        <p class="stat-label">Combined revenue — all projects</p>
-        <p class="hero-figure" id="employee-total"></p>
+        <div class="dial-wrap">
+          <svg id="dial" class="dial" viewBox="0 0 220 158" role="img"></svg>
+        </div>
+        <p class="dial-status" id="dial-status"></p>
+
+        <form id="dial-form" class="dial-form" novalidate>
+          <h3 class="summary-h">Dial settings</h3>
+          <div class="dial-fields">
+            <div class="field">
+              <label for="dial-min">Min value ($)</label>
+              <input id="dial-min" type="number" min="0" step="any" placeholder="1000000" />
+            </div>
+            <div class="field">
+              <label for="dial-max">Max value ($)</label>
+              <input id="dial-max" type="number" min="0" step="any" placeholder="2000000" />
+            </div>
+            <div class="field">
+              <label for="dial-pct">Bonus threshold (%)</label>
+              <input id="dial-pct" type="number" min="0" max="100" step="any" placeholder="67" />
+            </div>
+          </div>
+          <p class="dial-hint" id="dial-hint"></p>
+          <div class="save-row">
+            <button type="submit" class="btn btn-primary btn-compact">Save dial settings</button>
+            <span id="dial-save-note" class="save-note" hidden>Saved</span>
+          </div>
+        </form>
 
         <div class="summary-cols">
           <div>
