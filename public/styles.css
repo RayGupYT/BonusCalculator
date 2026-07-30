@@ -464,6 +464,221 @@ h1, h2, h3, p {
   color: var(--good);
 }
 
+/* ---------- Monthly revenue ---------- */
+.revenue-card {
+  margin-top: 16px;
+}
+
+.revenue-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 12px;
+}
+
+.revenue-head h3 {
+  font-size: 16.5px;
+  font-weight: 650;
+  letter-spacing: -0.01em;
+}
+
+.revenue-actions {
+  display: flex;
+  gap: 8px;
+}
+
+.add-month-form {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-top: 14px;
+}
+
+.add-month-form input {
+  font: inherit;
+  font-size: 14px;
+  color: var(--ink);
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  padding: 7px 11px;
+}
+
+.add-month-form input:focus-visible {
+  outline: none;
+  border-color: var(--accent);
+  box-shadow: 0 0 0 3px var(--accent-wash);
+}
+
+.month-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(190px, 1fr));
+  gap: 12px;
+  margin-top: 16px;
+}
+
+.month-box {
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  padding: 12px;
+  display: grid;
+  gap: 8px;
+  align-content: start;
+}
+
+.month-box-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 6px;
+}
+
+.month-label {
+  font-size: 13.5px;
+  font-weight: 650;
+}
+
+.money-input {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  padding: 7px 10px;
+  background: var(--surface);
+}
+
+.money-input span {
+  color: var(--muted);
+  font-size: 14px;
+}
+
+.money-input input {
+  border: none;
+  outline: none;
+  background: transparent;
+  font: inherit;
+  font-size: 14.5px;
+  color: var(--ink);
+  width: 100%;
+  min-width: 0;
+}
+
+.money-input input::placeholder {
+  color: var(--muted);
+}
+
+.money-input:focus-within {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 3px var(--accent-wash);
+}
+
+.box-note {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--good);
+}
+
+/* ---------- Employee dashboard ---------- */
+.employee-link {
+  font: inherit;
+  font-size: 16.5px;
+  font-weight: 650;
+  letter-spacing: -0.01em;
+  color: var(--accent);
+  background: none;
+  border: none;
+  padding: 0;
+  cursor: pointer;
+  text-align: left;
+  overflow-wrap: anywhere;
+}
+
+.employee-link:hover {
+  text-decoration: underline;
+}
+
+.employee-link:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+  border-radius: 4px;
+}
+
+.employee-dash {
+  padding: 26px 28px;
+}
+
+.stat-label {
+  font-size: 13px;
+  color: var(--ink-2);
+  margin-bottom: 2px;
+}
+
+.hero-figure {
+  font-size: 48px;
+  font-weight: 650;
+  letter-spacing: -0.02em;
+  line-height: 1.15;
+  margin-bottom: 26px;
+}
+
+.summary-cols {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 26px;
+}
+
+.summary-h {
+  font-size: 13px;
+  font-weight: 650;
+  color: var(--ink-2);
+  margin-bottom: 8px;
+}
+
+.summary-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: 2px;
+}
+
+.summary-list li {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 12px;
+  font-size: 14px;
+  padding: 7px 10px;
+  border-radius: 6px;
+}
+
+.summary-list li:hover {
+  background: var(--accent-wash);
+}
+
+.summary-label {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+.summary-value {
+  font-variant-numeric: tabular-nums;
+  font-weight: 550;
+  white-space: nowrap;
+}
+
+@media (max-width: 560px) {
+  .summary-cols {
+    grid-template-columns: 1fr;
+  }
+
+  .hero-figure {
+    font-size: 38px;
+  }
+}
+
 .visually-hidden {
   position: absolute;
   width: 1px;

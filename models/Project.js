@@ -26,6 +26,14 @@ const projectSchema = new mongoose.Schema(
       maxlength: 120,
       default: '',
     },
+    revenue: [
+      {
+        _id: false,
+        year: { type: Number, required: true, min: 2000, max: 2100 },
+        month: { type: Number, required: true, min: 1, max: 12 },
+        amount: { type: Number, required: true, min: 0, default: 0 },
+      },
+    ],
   },
   { timestamps: true }
 );

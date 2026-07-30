@@ -93,6 +93,56 @@
           </div>
         </form>
       </section>
+
+      <section class="card revenue-card">
+        <div class="revenue-head">
+          <h3>Monthly revenue</h3>
+          <div class="revenue-actions">
+            <button type="button" id="btn-add-month" class="btn btn-ghost btn-compact">Add month</button>
+            <button type="button" id="btn-next-month" class="btn btn-primary btn-compact">Next month</button>
+          </div>
+        </div>
+
+        <form id="add-month-form" class="add-month-form" hidden novalidate>
+          <label class="visually-hidden" for="month-picker">Month and year</label>
+          <input id="month-picker" type="month" placeholder="YYYY-MM" />
+          <button type="submit" class="btn btn-primary btn-compact">Add</button>
+          <button type="button" id="btn-cancel-month" class="btn btn-ghost btn-compact">Cancel</button>
+        </form>
+
+        <div id="month-grid" class="month-grid"></div>
+        <p id="months-empty" class="empty-note" hidden>
+          No months yet — use “Next month” or “Add month” to start recording revenue.
+        </p>
+      </section>
+    </main>
+
+    <!-- Page: employee dashboard -->
+    <main class="home-wrap" id="page-employee" hidden>
+      <button type="button" class="btn btn-ghost btn-compact back-btn" id="btn-back-employee">← Employees</button>
+
+      <p id="employee-error" class="form-error" role="alert" hidden></p>
+
+      <section class="card employee-dash">
+        <p class="crumb">Employee</p>
+        <h2 class="project-title" id="employee-title"></h2>
+
+        <p class="stat-label">Combined revenue — all projects</p>
+        <p class="hero-figure" id="employee-total"></p>
+
+        <div class="summary-cols">
+          <div>
+            <h3 class="summary-h">By month</h3>
+            <ul id="employee-months" class="summary-list"></ul>
+            <p class="empty-note" id="employee-months-empty" hidden>No revenue recorded yet</p>
+          </div>
+          <div>
+            <h3 class="summary-h">By project</h3>
+            <ul id="employee-projects" class="summary-list"></ul>
+            <p class="empty-note" id="employee-projects-empty" hidden>No projects yet</p>
+          </div>
+        </div>
+      </section>
     </main>
   </div>
 
