@@ -6,6 +6,7 @@ const helmet = require('helmet');
 const mongoose = require('mongoose');
 
 const authRoutes = require('./routes/auth');
+const User = require('./models/User');
 
 if (!process.env.JWT_SECRET) {
   console.error(
@@ -86,6 +87,16 @@ async function connectDB() {
     try {
       await mongoose.connect(uri);
       console.log('MongoDB connected');
+      // Drop indexes the schema doesn't declare (a stray unique "username"
+      // index once made every registration fail with a false duplicate).
+      try {
+        const dropped = await User.syncIndexes();
+        if (dropped.length > 0) {
+          console.log(`users index sync dropped: ${dropped.join(', ')}`);
+        }
+      } catch (syncErr) {
+        console.error('users index sync failed:', syncErr.message);
+      }
       return;
     } catch (err) {
       console.error(
