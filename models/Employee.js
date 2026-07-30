@@ -18,6 +18,10 @@ const employeeSchema = new mongoose.Schema(
     dialMin: { type: Number, min: 0, default: 0 },
     dialMax: { type: Number, min: 0, default: 1000000 },
     thresholdPct: { type: Number, min: 0, max: 100, default: 100 },
+    // Bonus earned per dollar above the threshold, as a percent (1.5 = 1.5 cents/$).
+    bonusRate: { type: Number, min: 0, max: 100, default: 1.5 },
+    // When set and within the viewed year, the dial's min/max prorate by months remaining.
+    hireDate: { type: Date, default: null },
   },
   { timestamps: true }
 );

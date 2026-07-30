@@ -28,6 +28,8 @@
     projectTitle: document.getElementById('project-title'),
     clientForm: document.getElementById('client-form'),
     clientName: document.getElementById('client-name'),
+    projectMrr: document.getElementById('project-mrr'),
+    projectActive: document.getElementById('project-active'),
     saveNote: document.getElementById('save-note'),
     addMonthBtn: document.getElementById('btn-add-month'),
     nextMonthBtn: document.getElementById('btn-next-month'),
@@ -40,12 +42,16 @@
     backEmployeeBtn: document.getElementById('btn-back-employee'),
     employeeError: document.getElementById('employee-error'),
     employeeTitle: document.getElementById('employee-title'),
+    yearSelect: document.getElementById('year-select'),
     dial: document.getElementById('dial'),
     dialStatus: document.getElementById('dial-status'),
+    prorationNote: document.getElementById('proration-note'),
     dialForm: document.getElementById('dial-form'),
     dialMin: document.getElementById('dial-min'),
     dialMax: document.getElementById('dial-max'),
     dialPct: document.getElementById('dial-pct'),
+    dialRate: document.getElementById('dial-rate'),
+    dialHire: document.getElementById('dial-hire'),
     dialHint: document.getElementById('dial-hint'),
     dialSaveNote: document.getElementById('dial-save-note'),
     employeeMonths: document.getElementById('employee-months'),
@@ -155,6 +161,8 @@
       els.projectEmployee.textContent = `Under ${project.employee.name}`;
       els.projectTitle.textContent = project.name;
       els.clientName.value = project.clientName;
+      els.projectMrr.value = project.monthlyRevenue ? String(project.monthlyRevenue) : '';
+      els.projectActive.checked = project.active !== false;
       els.saveNote.hidden = true;
       els.projectError.hidden = true;
       els.addMonthForm.hidden = true;
@@ -168,10 +176,11 @@
     }
   }
 
-  async function openEmployee(employeeId) {
+  async function openEmployee(employeeId, year) {
     const alreadyOpen = !els.pageEmployee.hidden;
     try {
-      const data = await api(`/api/employees/${employeeId}/summary`);
+      const query = year ? `?year=${year}` : '';
+      const data = await api(`/api/employees/${employeeId}/summary${query}`);
 
       currentEmployeeId = employeeId;
       renderEmployeeDash(data);
@@ -190,12 +199,25 @@
   function renderEmployeeDash(data) {
     els.employeeTitle.textContent = data.employee.name;
 
+    els.yearSelect.replaceChildren(
+      ...data.availableYears.map((y) => {
+        const option = document.createElement('option');
+        option.value = String(y);
+        option.textContent = String(y);
+        option.selected = y === data.year;
+        return option;
+      })
+    );
+
     renderDial(data);
     renderDialStatus(data.computed);
+    renderProration(data);
 
     els.dialMin.value = String(data.settings.dialMin);
     els.dialMax.value = String(data.settings.dialMax);
     els.dialPct.value = String(data.settings.thresholdPct);
+    els.dialRate.value = String(data.settings.bonusRate);
+    els.dialHire.value = data.settings.hireDate || '';
     els.dialSaveNote.hidden = true;
     updateDialHint();
 
@@ -207,9 +229,23 @@
     els.employeeMonthsEmpty.hidden = data.monthlyTotals.length > 0;
 
     els.employeeProjects.replaceChildren(
-      ...data.projects.map((p) => summaryRow(p.name, money.format(p.total)))
+      ...data.projects.map((p) =>
+        summaryRow(p.name, money.format(p.total), p.active ? null : 'inactive')
+      )
     );
     els.employeeProjectsEmpty.hidden = data.projects.length > 0;
+  }
+
+  function renderProration(data) {
+    const factor = data.computed.prorationFactor;
+    if (factor < 1 && data.settings.hireDate) {
+      const hired = new Date(`${data.settings.hireDate}T00:00:00`);
+      const hiredLabel = hired.toLocaleString('en-US', { month: 'long' });
+      els.prorationNote.textContent = `Goal prorated to ${Math.round(factor * 100)}% — hired ${hiredLabel} ${data.year}.`;
+      els.prorationNote.hidden = false;
+    } else {
+      els.prorationNote.hidden = true;
+    }
   }
 
   // ---------- Bonus dial (SVG gauge) ----------
@@ -241,10 +277,11 @@
   }
 
   function renderDial(data) {
-    const { dialMin, dialMax, thresholdPct } = data.settings;
+    const { effectiveMin, effectiveMax } = data.computed;
+    const { thresholdPct } = data.settings;
     const total = data.totalRevenue;
-    const span = dialMax - dialMin;
-    const pct = span > 0 ? Math.min(1, Math.max(0, (total - dialMin) / span)) : 0;
+    const span = effectiveMax - effectiveMin;
+    const pct = span > 0 ? Math.min(1, Math.max(0, (total - effectiveMin) / span)) : 0;
     const tpct = Math.min(1, Math.max(0, thresholdPct / 100));
     const angleAt = (p) => DIAL.start + DIAL.sweep * p;
 
@@ -252,7 +289,7 @@
     svg.replaceChildren();
     svg.setAttribute(
       'aria-label',
-      `Combined revenue ${money.format(total)} on a scale from ${money.format(dialMin)} to ${money.format(dialMax)}; bonus threshold at ${money.format(data.computed.thresholdValue)}`
+      `${data.year} revenue ${money.format(total)} on a scale from ${money.format(effectiveMin)} to ${money.format(effectiveMax)}; bonus threshold at ${money.format(data.computed.thresholdValue)}`
     );
 
     svg.append(svgEl('path', { d: arcPath(angleAt(0), angleAt(1)), class: 'dial-track' }));
@@ -298,7 +335,7 @@
       'text-anchor': 'middle',
       class: 'dial-sub',
     });
-    sub.textContent = 'combined revenue';
+    sub.textContent = `${data.year} revenue`;
     svg.append(sub);
 
     const [minX] = dialPoint(angleAt(0));
@@ -309,21 +346,21 @@
       'text-anchor': 'middle',
       class: 'dial-minmax',
     });
-    minLabel.textContent = moneyCompact.format(dialMin);
+    minLabel.textContent = moneyCompact.format(effectiveMin);
     const maxLabel = svgEl('text', {
       x: maxX.toFixed(2),
       y: 154,
       'text-anchor': 'middle',
       class: 'dial-minmax',
     });
-    maxLabel.textContent = moneyCompact.format(dialMax);
+    maxLabel.textContent = moneyCompact.format(effectiveMax);
     svg.append(minLabel, maxLabel);
   }
 
   function renderDialStatus(computed) {
     els.dialStatus.classList.toggle('is-bonus', computed.bonusStarted);
     if (computed.bonusStarted) {
-      els.dialStatus.textContent = `Bonus value: ${money.format(computed.bonus)} — earning 1.5¢ per $1 above ${moneyCompact.format(computed.thresholdValue)}`;
+      els.dialStatus.textContent = `Bonus value: ${money.format(computed.bonus)} — earning ${computed.bonusRatePct}¢ per $1 above ${moneyCompact.format(computed.thresholdValue)}`;
     } else {
       els.dialStatus.textContent = `Bonus starts at ${money.format(computed.thresholdValue)} — ${money.format(computed.remainingToBonus)} to go`;
     }
@@ -333,18 +370,23 @@
     const min = Number(els.dialMin.value);
     const max = Number(els.dialMax.value);
     const pct = Number(els.dialPct.value);
+    const rate = Number(els.dialRate.value);
     if (
       els.dialMin.value.trim() === '' ||
       els.dialMax.value.trim() === '' ||
       els.dialPct.value.trim() === '' ||
+      els.dialRate.value.trim() === '' ||
       !Number.isFinite(min) ||
       !Number.isFinite(max) ||
-      !Number.isFinite(pct)
+      !Number.isFinite(pct) ||
+      !Number.isFinite(rate)
     ) {
       return null;
     }
-    if (min < 0 || max <= min || pct < 0 || pct > 100) return null;
-    return { dialMin: min, dialMax: max, thresholdPct: pct };
+    if (min < 0 || max <= min || pct < 0 || pct > 100 || rate < 0 || rate > 100) {
+      return null;
+    }
+    return { dialMin: min, dialMax: max, thresholdPct: pct, bonusRate: rate };
   }
 
   function updateDialHint() {
@@ -356,7 +398,8 @@
     }
     const threshold =
       values.dialMin + (values.dialMax - values.dialMin) * (values.thresholdPct / 100);
-    els.dialHint.textContent = `Bonus will start at ${money.format(threshold)} and earn 1.5¢ per $1 above it.`;
+    const suffix = els.dialHire.value ? ' Min and max prorate for the hire year.' : '';
+    els.dialHint.textContent = `Bonus will start at ${money.format(threshold)} and earn ${values.bonusRate}¢ per $1 above it.${suffix}`;
   }
 
   function showEmployeeError(message) {
@@ -364,11 +407,17 @@
     els.employeeError.hidden = false;
   }
 
-  function summaryRow(label, value) {
+  function summaryRow(label, value, note) {
     const row = document.createElement('li');
     const name = document.createElement('span');
     name.className = 'summary-label';
     name.textContent = label;
+    if (note) {
+      const noteEl = document.createElement('span');
+      noteEl.className = 'summary-note';
+      noteEl.textContent = note;
+      name.append(noteEl);
+    }
     const val = document.createElement('span');
     val.className = 'summary-value';
     val.textContent = value;
@@ -492,6 +541,16 @@
     open.setAttribute('aria-label', `Open project ${project.name}`);
     open.addEventListener('click', () => openProject(employee.id, project.id));
 
+    const meta = document.createElement('span');
+    meta.className = 'project-meta';
+    const parts = [];
+    if (project.monthlyRevenue > 0) parts.push(`${moneyCompact.format(project.monthlyRevenue)}/mo`);
+    if (project.active === false) {
+      parts.push('Inactive');
+      row.classList.add('is-inactive');
+    }
+    meta.textContent = parts.join(' · ');
+
     const remove = iconButton(`Delete project ${project.name}`, async () => {
       if (!window.confirm(`Delete project ${project.name}?`)) return;
       try {
@@ -505,7 +564,7 @@
       }
     });
 
-    row.append(open, remove);
+    row.append(open, meta, remove);
     return row;
   }
 
@@ -588,12 +647,25 @@
     event.preventDefault();
     if (!currentProject) return;
 
+    const mrrRaw = els.projectMrr.value.trim();
+    const monthlyRevenue = mrrRaw === '' ? 0 : Number(mrrRaw);
+    if (!Number.isFinite(monthlyRevenue) || monthlyRevenue < 0) {
+      return showProjectError('Monthly recurring revenue must be 0 or more.');
+    }
+
     const button = els.clientForm.querySelector('button[type="submit"]');
     button.disabled = true;
     try {
       await api(
         `/api/employees/${currentProject.employeeId}/projects/${currentProject.projectId}`,
-        { method: 'PATCH', body: { clientName: els.clientName.value.trim() } }
+        {
+          method: 'PATCH',
+          body: {
+            clientName: els.clientName.value.trim(),
+            monthlyRevenue,
+            active: els.projectActive.checked,
+          },
+        }
       );
       els.projectError.hidden = true;
       els.saveNote.hidden = false;
@@ -607,15 +679,27 @@
   els.clientName.addEventListener('input', () => {
     els.saveNote.hidden = true;
   });
+  els.projectMrr.addEventListener('input', () => {
+    els.saveNote.hidden = true;
+  });
+  els.projectActive.addEventListener('change', () => {
+    els.saveNote.hidden = true;
+  });
 
   // ---------- Employee dashboard: dial settings ----------
 
-  for (const input of [els.dialMin, els.dialMax, els.dialPct]) {
+  for (const input of [els.dialMin, els.dialMax, els.dialPct, els.dialRate, els.dialHire]) {
     input.addEventListener('input', () => {
       els.dialSaveNote.hidden = true;
       updateDialHint();
     });
   }
+
+  els.yearSelect.addEventListener('change', () => {
+    if (currentEmployeeId) {
+      openEmployee(currentEmployeeId, Number(els.yearSelect.value));
+    }
+  });
 
   els.dialForm.addEventListener('submit', async (event) => {
     event.preventDefault();
@@ -624,7 +708,7 @@
     const values = readDialInputs();
     if (!values) {
       return showEmployeeError(
-        'Check the dial settings: min ≥ 0, max greater than min, threshold between 0 and 100.'
+        'Check the dial settings: min ≥ 0, max greater than min, threshold and rate between 0 and 100.'
       );
     }
 
@@ -633,11 +717,10 @@
     try {
       await api(`/api/employees/${currentEmployeeId}`, {
         method: 'PATCH',
-        body: values,
+        body: { ...values, hireDate: els.dialHire.value || null },
       });
       els.employeeError.hidden = true;
-      els.dialSaveNote.hidden = false;
-      await openEmployee(currentEmployeeId);
+      await openEmployee(currentEmployeeId, Number(els.yearSelect.value));
       els.dialSaveNote.hidden = false;
     } catch (err) {
       if (!handleSessionExpiry(err)) showEmployeeError(err.message);

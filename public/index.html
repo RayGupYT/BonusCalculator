@@ -83,10 +83,20 @@
         <h2 class="project-title" id="project-title"></h2>
 
         <form id="client-form" novalidate>
-          <div class="field client-field">
-            <label for="client-name">Client name</label>
-            <input id="client-name" type="text" maxlength="120" placeholder="e.g. Acme Corporation" />
+          <div class="project-fields">
+            <div class="field">
+              <label for="client-name">Client name</label>
+              <input id="client-name" type="text" maxlength="120" placeholder="e.g. Acme Corporation" />
+            </div>
+            <div class="field">
+              <label for="project-mrr">Monthly recurring revenue ($)</label>
+              <input id="project-mrr" type="number" min="0" step="any" placeholder="2500" />
+            </div>
           </div>
+          <label class="check-row" for="project-active">
+            <input id="project-active" type="checkbox" checked />
+            Active project
+          </label>
           <div class="save-row">
             <button type="submit" class="btn btn-primary btn-compact">Save</button>
             <span id="save-note" class="save-note" hidden>Saved</span>
@@ -112,7 +122,8 @@
 
         <div id="month-grid" class="month-grid"></div>
         <p id="months-empty" class="empty-note" hidden>
-          No months yet — use “Next month” or “Add month” to start recording revenue.
+          No months yet — “Next month” or “Add month” creates one prefilled with this
+          project's monthly recurring revenue.
         </p>
       </section>
     </main>
@@ -124,13 +135,22 @@
       <p id="employee-error" class="form-error" role="alert" hidden></p>
 
       <section class="card employee-dash">
-        <p class="crumb">Employee</p>
-        <h2 class="project-title" id="employee-title"></h2>
+        <div class="employee-dash-head">
+          <div>
+            <p class="crumb">Employee</p>
+            <h2 class="project-title" id="employee-title"></h2>
+          </div>
+          <div>
+            <label class="visually-hidden" for="year-select">Year</label>
+            <select id="year-select" class="year-select"></select>
+          </div>
+        </div>
 
         <div class="dial-wrap">
           <svg id="dial" class="dial" viewBox="0 0 220 158" role="img"></svg>
         </div>
         <p class="dial-status" id="dial-status"></p>
+        <p class="proration-note" id="proration-note" hidden></p>
 
         <form id="dial-form" class="dial-form" novalidate>
           <h3 class="summary-h">Dial settings</h3>
@@ -146,6 +166,14 @@
             <div class="field">
               <label for="dial-pct">Bonus threshold (%)</label>
               <input id="dial-pct" type="number" min="0" max="100" step="any" placeholder="67" />
+            </div>
+            <div class="field">
+              <label for="dial-rate">Bonus rate (%)</label>
+              <input id="dial-rate" type="number" min="0" max="100" step="any" placeholder="1.5" />
+            </div>
+            <div class="field">
+              <label for="dial-hire">Hire date (optional)</label>
+              <input id="dial-hire" type="date" />
             </div>
           </div>
           <p class="dial-hint" id="dial-hint"></p>

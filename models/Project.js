@@ -26,6 +26,16 @@ const projectSchema = new mongoose.Schema(
       maxlength: 120,
       default: '',
     },
+    active: {
+      type: Boolean,
+      default: true,
+    },
+    // Recurring amount used to prefill newly added months.
+    monthlyRevenue: {
+      type: Number,
+      min: 0,
+      default: 0,
+    },
     revenue: [
       {
         _id: false,

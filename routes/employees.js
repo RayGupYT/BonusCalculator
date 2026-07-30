@@ -9,9 +9,6 @@ const router = express.Router();
 
 router.use(requireAuth);
 
-// Bonus earned per dollar of revenue above the threshold (1.5 cents).
-const BONUS_RATE = 0.015;
-
 function validName(value, maxLength) {
   return (
     typeof value === 'string' && value.trim().length > 0 && value.trim().length <= maxLength
@@ -94,7 +91,12 @@ router.get('/', async (req, res, next) => {
     for (const project of projects) {
       const key = project.employeeId.toString();
       if (!byEmployee.has(key)) byEmployee.set(key, []);
-      byEmployee.get(key).push({ id: project._id.toString(), name: project.name });
+      byEmployee.get(key).push({
+        id: project._id.toString(),
+        name: project.name,
+        active: project.active !== false,
+        monthlyRevenue: project.monthlyRevenue ?? 0,
+      });
     }
 
     res.json({
@@ -187,6 +189,8 @@ router.get('/:employeeId/projects/:projectId', async (req, res, next) => {
         id: project._id.toString(),
         name: project.name,
         clientName: project.clientName || '',
+        active: project.active !== false,
+        monthlyRevenue: project.monthlyRevenue ?? 0,
         revenue: sortedRevenue(project),
         employee: { id: employee._id.toString(), name: employee.name },
       },
@@ -206,16 +210,43 @@ router.patch('/:employeeId/projects/:projectId', async (req, res, next) => {
       return res.status(404).json({ error: 'Project not found' });
     }
 
-    const { clientName } = req.body || {};
-    if (typeof clientName !== 'string' || clientName.trim().length > 120) {
-      return res
-        .status(400)
-        .json({ error: 'Client name must be text (max 120 characters)' });
+    const { clientName, monthlyRevenue, active } = req.body || {};
+    const updates = {};
+
+    if (clientName !== undefined) {
+      if (typeof clientName !== 'string' || clientName.trim().length > 120) {
+        return res
+          .status(400)
+          .json({ error: 'Client name must be text (max 120 characters)' });
+      }
+      updates.clientName = clientName.trim();
+    }
+    if (monthlyRevenue !== undefined) {
+      if (
+        typeof monthlyRevenue !== 'number' ||
+        !Number.isFinite(monthlyRevenue) ||
+        monthlyRevenue < 0 ||
+        monthlyRevenue > 1e12
+      ) {
+        return res
+          .status(400)
+          .json({ error: 'Monthly recurring revenue must be a number of 0 or more' });
+      }
+      updates.monthlyRevenue = round2(monthlyRevenue);
+    }
+    if (active !== undefined) {
+      if (typeof active !== 'boolean') {
+        return res.status(400).json({ error: 'Active must be true or false' });
+      }
+      updates.active = active;
+    }
+    if (Object.keys(updates).length === 0) {
+      return res.status(400).json({ error: 'Nothing to update' });
     }
 
     const project = await Project.findOneAndUpdate(
       { _id: projectId, employeeId: employee._id, userId: req.user._id },
-      { clientName: clientName.trim() },
+      updates,
       { new: true }
     );
     if (!project) {
@@ -227,6 +258,8 @@ router.patch('/:employeeId/projects/:projectId', async (req, res, next) => {
         id: project._id.toString(),
         name: project.name,
         clientName: project.clientName || '',
+        active: project.active !== false,
+        monthlyRevenue: project.monthlyRevenue ?? 0,
         employee: { id: employee._id.toString(), name: employee.name },
       },
     });
@@ -259,31 +292,40 @@ router.delete('/:employeeId/projects/:projectId', async (req, res, next) => {
   }
 });
 
-// Employee dashboard: combined revenue across all of the employee's projects.
+// Employee dashboard: revenue for one year combined across the employee's projects.
 router.get('/:employeeId/summary', async (req, res, next) => {
   try {
     const employee = await findOwnedEmployee(req, res);
     if (!employee) return;
+
+    const currentYear = new Date().getFullYear();
+    let year = Number.parseInt(req.query.year, 10);
+    if (!Number.isInteger(year) || year < 2000 || year > 2100) {
+      year = currentYear;
+    }
 
     const projects = await Project.find({
       employeeId: employee._id,
       userId: req.user._id,
     }).sort({ createdAt: 1 });
 
-    const monthTotals = new Map(); // key: year * 100 + month
+    const monthTotals = new Map(); // month (1-12) -> total, within the selected year
+    const yearsSet = new Set([currentYear, year]);
     let totalRevenue = 0;
 
     const projectSummaries = projects.map((project) => {
       let projectTotal = 0;
       for (const entry of project.revenue) {
+        yearsSet.add(entry.year);
+        if (entry.year !== year) continue;
         projectTotal += entry.amount;
-        const key = entry.year * 100 + entry.month;
-        monthTotals.set(key, (monthTotals.get(key) || 0) + entry.amount);
+        monthTotals.set(entry.month, (monthTotals.get(entry.month) || 0) + entry.amount);
       }
       totalRevenue += projectTotal;
       return {
         id: project._id.toString(),
         name: project.name,
+        active: project.active !== false,
         total: round2(projectTotal),
       };
     });
@@ -291,28 +333,53 @@ router.get('/:employeeId/summary', async (req, res, next) => {
     const dialMin = employee.dialMin ?? 0;
     const dialMax = employee.dialMax ?? 1000000;
     const thresholdPct = employee.thresholdPct ?? 100;
+    const bonusRate = employee.bonusRate ?? 1.5;
+    const hireDate = employee.hireDate || null;
+
+    // Prorate the dial when the employee was hired during the viewed year:
+    // hired in July -> 6 of 12 months remain -> goals scale to 50%.
+    let prorationFactor = 1;
+    if (hireDate && hireDate.getUTCFullYear() === year) {
+      prorationFactor = (12 - hireDate.getUTCMonth()) / 12;
+    }
+
+    const effectiveMin = round2(dialMin * prorationFactor);
+    const effectiveMax = round2(dialMax * prorationFactor);
 
     const total = round2(totalRevenue);
-    const thresholdValue = round2(dialMin + (dialMax - dialMin) * (thresholdPct / 100));
-    const bonus = round2(Math.max(0, total - thresholdValue) * BONUS_RATE);
+    const thresholdValue = round2(
+      effectiveMin + (effectiveMax - effectiveMin) * (thresholdPct / 100)
+    );
+    const bonus = round2(Math.max(0, total - thresholdValue) * (bonusRate / 100));
 
     res.json({
       employee: { id: employee._id.toString(), name: employee.name },
+      year,
+      availableYears: [...yearsSet].sort((a, b) => b - a),
       totalRevenue: total,
-      settings: { dialMin, dialMax, thresholdPct },
+      settings: {
+        dialMin,
+        dialMax,
+        thresholdPct,
+        bonusRate,
+        hireDate: hireDate ? hireDate.toISOString().slice(0, 10) : null,
+      },
       computed: {
+        prorationFactor,
+        effectiveMin,
+        effectiveMax,
         thresholdValue,
         bonusStarted: total >= thresholdValue,
         bonus,
         remainingToBonus: round2(Math.max(0, thresholdValue - total)),
-        bonusRate: BONUS_RATE,
+        bonusRatePct: bonusRate,
       },
       monthlyTotals: [...monthTotals.entries()]
         .sort((a, b) => a[0] - b[0])
-        .map(([key, total]) => ({
-          year: Math.floor(key / 100),
-          month: key % 100,
-          total: round2(total),
+        .map(([month, monthTotal]) => ({
+          year,
+          month,
+          total: round2(monthTotal),
         })),
       projects: projectSummaries,
     });
@@ -327,12 +394,12 @@ router.patch('/:employeeId', async (req, res, next) => {
     const employee = await findOwnedEmployee(req, res);
     if (!employee) return;
 
-    const { dialMin, dialMax, thresholdPct } = req.body || {};
-    const values = [dialMin, dialMax, thresholdPct];
+    const { dialMin, dialMax, thresholdPct, bonusRate, hireDate } = req.body || {};
+    const values = [dialMin, dialMax, thresholdPct, bonusRate];
     if (values.some((v) => typeof v !== 'number' || !Number.isFinite(v))) {
       return res
         .status(400)
-        .json({ error: 'Min, max, and threshold must all be numbers' });
+        .json({ error: 'Min, max, threshold, and bonus rate must all be numbers' });
     }
     if (dialMin < 0 || dialMax > 1e12) {
       return res
@@ -347,10 +414,33 @@ router.patch('/:employeeId', async (req, res, next) => {
         .status(400)
         .json({ error: 'Threshold must be between 0 and 100 percent' });
     }
+    if (bonusRate < 0 || bonusRate > 100) {
+      return res
+        .status(400)
+        .json({ error: 'Bonus rate must be between 0 and 100 percent' });
+    }
+
+    if (hireDate === null || hireDate === '' || hireDate === undefined) {
+      employee.hireDate = null;
+    } else {
+      if (typeof hireDate !== 'string' || !/^\d{4}-\d{2}-\d{2}$/.test(hireDate)) {
+        return res.status(400).json({ error: 'Hire date must be a date (YYYY-MM-DD)' });
+      }
+      const parsed = new Date(`${hireDate}T00:00:00.000Z`);
+      if (
+        Number.isNaN(parsed.getTime()) ||
+        parsed.getUTCFullYear() < 1950 ||
+        parsed.getUTCFullYear() > 2100
+      ) {
+        return res.status(400).json({ error: 'Hire date is out of range' });
+      }
+      employee.hireDate = parsed;
+    }
 
     employee.dialMin = round2(dialMin);
     employee.dialMax = round2(dialMax);
     employee.thresholdPct = round2(thresholdPct);
+    employee.bonusRate = round2(bonusRate);
     await employee.save();
 
     res.json({
@@ -358,6 +448,8 @@ router.patch('/:employeeId', async (req, res, next) => {
         dialMin: employee.dialMin,
         dialMax: employee.dialMax,
         thresholdPct: employee.thresholdPct,
+        bonusRate: employee.bonusRate,
+        hireDate: employee.hireDate ? employee.hireDate.toISOString().slice(0, 10) : null,
       },
     });
   } catch (err) {
@@ -384,9 +476,11 @@ router.post('/:employeeId/projects/:projectId/revenue', async (req, res, next) =
       return res.status(409).json({ error: 'That month already exists on this project' });
     }
 
-    project.revenue.push({ year: parsed.year, month: parsed.month, amount: 0 });
+    // New months start prefilled with the project's monthly recurring revenue.
+    const amount = round2(project.monthlyRevenue ?? 0);
+    project.revenue.push({ year: parsed.year, month: parsed.month, amount });
     await project.save();
-    res.status(201).json({ entry: { year: parsed.year, month: parsed.month, amount: 0 } });
+    res.status(201).json({ entry: { year: parsed.year, month: parsed.month, amount } });
   } catch (err) {
     next(err);
   }
