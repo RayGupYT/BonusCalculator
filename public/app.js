@@ -118,6 +118,23 @@
     return data;
   }
 
+  // Prompt the browser's password manager (e.g. Google Passwords in Chrome)
+  // to save the credentials. Safari/Firefox fall back to their own heuristics.
+  function offerCredentialSave(email, password) {
+    try {
+      if (window.PasswordCredential && navigator.credentials) {
+        const credential = new PasswordCredential({
+          id: email,
+          password,
+          name: email,
+        });
+        navigator.credentials.store(credential).catch(() => {});
+      }
+    } catch {
+      /* unsupported browser */
+    }
+  }
+
   // Expired/invalid session anywhere in the app → back to the login view.
   function handleSessionExpiry(err) {
     if (err.status !== 401) return false;
@@ -924,6 +941,7 @@
         mode === 'signup' ? { name, email, password } : { email, password };
       const data = await api(path, { method: 'POST', body });
 
+      offerCredentialSave(email, password);
       localStorage.setItem(TOKEN_KEY, data.token);
       els.form.reset();
       showApp(data.user);
