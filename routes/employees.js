@@ -113,6 +113,77 @@ router.post('/:employeeId/projects', async (req, res, next) => {
   }
 });
 
+router.get('/:employeeId/projects/:projectId', async (req, res, next) => {
+  try {
+    const employee = await findOwnedEmployee(req, res);
+    if (!employee) return;
+
+    const { projectId } = req.params;
+    if (!mongoose.isValidObjectId(projectId)) {
+      return res.status(404).json({ error: 'Project not found' });
+    }
+
+    const project = await Project.findOne({
+      _id: projectId,
+      employeeId: employee._id,
+      userId: req.user._id,
+    });
+    if (!project) {
+      return res.status(404).json({ error: 'Project not found' });
+    }
+
+    res.json({
+      project: {
+        id: project._id.toString(),
+        name: project.name,
+        clientName: project.clientName || '',
+        employee: { id: employee._id.toString(), name: employee.name },
+      },
+    });
+  } catch (err) {
+    next(err);
+  }
+});
+
+router.patch('/:employeeId/projects/:projectId', async (req, res, next) => {
+  try {
+    const employee = await findOwnedEmployee(req, res);
+    if (!employee) return;
+
+    const { projectId } = req.params;
+    if (!mongoose.isValidObjectId(projectId)) {
+      return res.status(404).json({ error: 'Project not found' });
+    }
+
+    const { clientName } = req.body || {};
+    if (typeof clientName !== 'string' || clientName.trim().length > 120) {
+      return res
+        .status(400)
+        .json({ error: 'Client name must be text (max 120 characters)' });
+    }
+
+    const project = await Project.findOneAndUpdate(
+      { _id: projectId, employeeId: employee._id, userId: req.user._id },
+      { clientName: clientName.trim() },
+      { new: true }
+    );
+    if (!project) {
+      return res.status(404).json({ error: 'Project not found' });
+    }
+
+    res.json({
+      project: {
+        id: project._id.toString(),
+        name: project.name,
+        clientName: project.clientName || '',
+        employee: { id: employee._id.toString(), name: employee.name },
+      },
+    });
+  } catch (err) {
+    next(err);
+  }
+});
+
 router.delete('/:employeeId/projects/:projectId', async (req, res, next) => {
   try {
     const employee = await findOwnedEmployee(req, res);

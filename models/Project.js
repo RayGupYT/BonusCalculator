@@ -20,6 +20,12 @@ const projectSchema = new mongoose.Schema(
       trim: true,
       maxlength: 120,
     },
+    clientName: {
+      type: String,
+      trim: true,
+      maxlength: 120,
+      default: '',
+    },
   },
   { timestamps: true }
 );

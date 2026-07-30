@@ -3,7 +3,7 @@
 
   const els = {
     viewAuth: document.getElementById('view-auth'),
-    viewHome: document.getElementById('view-home'),
+    viewApp: document.getElementById('view-app'),
     tabLogin: document.getElementById('tab-login'),
     tabSignup: document.getElementById('tab-signup'),
     form: document.getElementById('auth-form'),
@@ -15,14 +15,24 @@
     submit: document.getElementById('auth-submit'),
     userEmail: document.getElementById('user-email'),
     logout: document.getElementById('btn-logout'),
+    pageEmployees: document.getElementById('page-employees'),
     employeeForm: document.getElementById('employee-form'),
     employeeName: document.getElementById('employee-name'),
     employeeList: document.getElementById('employee-list'),
     emptyState: document.getElementById('empty-state'),
     homeError: document.getElementById('home-error'),
+    pageProject: document.getElementById('page-project'),
+    backBtn: document.getElementById('btn-back'),
+    projectError: document.getElementById('project-error'),
+    projectEmployee: document.getElementById('project-employee'),
+    projectTitle: document.getElementById('project-title'),
+    clientForm: document.getElementById('client-form'),
+    clientName: document.getElementById('client-name'),
+    saveNote: document.getElementById('save-note'),
   };
 
   let mode = 'login'; // 'login' | 'signup'
+  let currentProject = null; // { employeeId, projectId }
 
   // ---------- API helper ----------
 
@@ -72,16 +82,42 @@
   // ---------- Views ----------
 
   function showAuth() {
-    els.viewHome.hidden = true;
+    els.viewApp.hidden = true;
     els.viewAuth.hidden = false;
     els.inputEmail.focus();
   }
 
-  function showHome(user) {
+  function showApp(user) {
     els.viewAuth.hidden = true;
-    els.viewHome.hidden = false;
+    els.viewApp.hidden = false;
     els.userEmail.textContent = user.email;
+    showEmployeesPage();
+  }
+
+  function showEmployeesPage() {
+    currentProject = null;
+    els.pageProject.hidden = true;
+    els.pageEmployees.hidden = false;
     loadEmployees();
+  }
+
+  async function openProject(employeeId, projectId) {
+    try {
+      const data = await api(`/api/employees/${employeeId}/projects/${projectId}`);
+      const project = data.project;
+
+      currentProject = { employeeId, projectId };
+      els.projectEmployee.textContent = `Under ${project.employee.name}`;
+      els.projectTitle.textContent = project.name;
+      els.clientName.value = project.clientName;
+      els.saveNote.hidden = true;
+      els.projectError.hidden = true;
+
+      els.pageEmployees.hidden = true;
+      els.pageProject.hidden = false;
+    } catch (err) {
+      if (!handleSessionExpiry(err)) showHomeError(err.message);
+    }
   }
 
   function setMode(next) {
@@ -112,6 +148,11 @@
 
   function hideHomeError() {
     els.homeError.hidden = true;
+  }
+
+  function showProjectError(message) {
+    els.projectError.textContent = message;
+    els.projectError.hidden = false;
   }
 
   // ---------- Employees & projects ----------
@@ -182,9 +223,12 @@
     const row = document.createElement('li');
     row.className = 'project-row';
 
-    const name = document.createElement('span');
-    name.className = 'project-name';
-    name.textContent = project.name;
+    const open = document.createElement('button');
+    open.type = 'button';
+    open.className = 'project-link';
+    open.textContent = project.name;
+    open.setAttribute('aria-label', `Open project ${project.name}`);
+    open.addEventListener('click', () => openProject(employee.id, project.id));
 
     const remove = iconButton(`Delete project ${project.name}`, async () => {
       if (!window.confirm(`Delete project ${project.name}?`)) return;
@@ -199,7 +243,7 @@
       }
     });
 
-    row.append(name, remove);
+    row.append(open, remove);
     return row;
   }
 
@@ -211,7 +255,7 @@
     const input = document.createElement('input');
     input.type = 'text';
     input.maxLength = 120;
-    input.placeholder = 'New project (client) name';
+    input.placeholder = 'New project name';
     input.setAttribute('aria-label', `New project for ${employee.name}`);
 
     const button = document.createElement('button');
@@ -273,6 +317,34 @@
     }
   });
 
+  // ---------- Project dashboard events ----------
+
+  els.backBtn.addEventListener('click', showEmployeesPage);
+
+  els.clientForm.addEventListener('submit', async (event) => {
+    event.preventDefault();
+    if (!currentProject) return;
+
+    const button = els.clientForm.querySelector('button[type="submit"]');
+    button.disabled = true;
+    try {
+      await api(
+        `/api/employees/${currentProject.employeeId}/projects/${currentProject.projectId}`,
+        { method: 'PATCH', body: { clientName: els.clientName.value.trim() } }
+      );
+      els.projectError.hidden = true;
+      els.saveNote.hidden = false;
+    } catch (err) {
+      if (!handleSessionExpiry(err)) showProjectError(err.message);
+    } finally {
+      button.disabled = false;
+    }
+  });
+
+  els.clientName.addEventListener('input', () => {
+    els.saveNote.hidden = true;
+  });
+
   // ---------- Auth events ----------
 
   els.tabLogin.addEventListener('click', () => setMode('login'));
@@ -300,7 +372,7 @@
 
       localStorage.setItem(TOKEN_KEY, data.token);
       els.form.reset();
-      showHome(data.user);
+      showApp(data.user);
     } catch (err) {
       showError(err.message);
     } finally {
@@ -322,7 +394,7 @@
 
     try {
       const data = await api('/api/auth/me');
-      showHome(data.user);
+      showApp(data.user);
     } catch (err) {
       if (err.status === 401) localStorage.removeItem(TOKEN_KEY);
       showAuth();

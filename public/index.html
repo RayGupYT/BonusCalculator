@@ -43,8 +43,8 @@
     </section>
   </main>
 
-  <!-- Signed-in homepage -->
-  <div id="view-home" hidden>
+  <!-- Signed-in app -->
+  <div id="view-app" hidden>
     <header class="topbar">
       <div class="topbar-brand"><span aria-hidden="true">💠</span> Bonus Calculator</div>
       <div class="topbar-user">
@@ -53,7 +53,8 @@
       </div>
     </header>
 
-    <main class="home-wrap">
+    <!-- Page: employees hierarchy -->
+    <main class="home-wrap" id="page-employees">
       <section class="page-head">
         <h2>Employees</h2>
         <form id="employee-form" class="inline-form" novalidate>
@@ -69,6 +70,29 @@
       <p id="empty-state" class="empty-state" hidden>
         No employees yet — add the first one above, then create client projects under them.
       </p>
+    </main>
+
+    <!-- Page: project dashboard -->
+    <main class="home-wrap" id="page-project" hidden>
+      <button type="button" class="btn btn-ghost btn-compact back-btn" id="btn-back">← Employees</button>
+
+      <p id="project-error" class="form-error" role="alert" hidden></p>
+
+      <section class="card project-dash">
+        <p class="crumb" id="project-employee"></p>
+        <h2 class="project-title" id="project-title"></h2>
+
+        <form id="client-form" novalidate>
+          <div class="field client-field">
+            <label for="client-name">Client name</label>
+            <input id="client-name" type="text" maxlength="120" placeholder="e.g. Acme Corporation" />
+          </div>
+          <div class="save-row">
+            <button type="submit" class="btn btn-primary btn-compact">Save</button>
+            <span id="save-note" class="save-note" hidden>Saved</span>
+          </div>
+        </form>
+      </section>
     </main>
   </div>
 
