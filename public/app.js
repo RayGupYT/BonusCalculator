@@ -14,8 +14,12 @@
     error: document.getElementById('auth-error'),
     submit: document.getElementById('auth-submit'),
     userEmail: document.getElementById('user-email'),
-    welcomeTitle: document.getElementById('welcome-title'),
     logout: document.getElementById('btn-logout'),
+    employeeForm: document.getElementById('employee-form'),
+    employeeName: document.getElementById('employee-name'),
+    employeeList: document.getElementById('employee-list'),
+    emptyState: document.getElementById('empty-state'),
+    homeError: document.getElementById('home-error'),
   };
 
   let mode = 'login'; // 'login' | 'signup'
@@ -55,6 +59,16 @@
     return data;
   }
 
+  // Expired/invalid session anywhere in the app → back to the login view.
+  function handleSessionExpiry(err) {
+    if (err.status !== 401) return false;
+    localStorage.removeItem(TOKEN_KEY);
+    setMode('login');
+    showAuth();
+    showError('Your session expired — please log in again.');
+    return true;
+  }
+
   // ---------- Views ----------
 
   function showAuth() {
@@ -67,7 +81,7 @@
     els.viewAuth.hidden = true;
     els.viewHome.hidden = false;
     els.userEmail.textContent = user.email;
-    els.welcomeTitle.textContent = `Welcome back, ${user.name}`;
+    loadEmployees();
   }
 
   function setMode(next) {
@@ -91,7 +105,175 @@
     els.error.hidden = true;
   }
 
-  // ---------- Events ----------
+  function showHomeError(message) {
+    els.homeError.textContent = message;
+    els.homeError.hidden = false;
+  }
+
+  function hideHomeError() {
+    els.homeError.hidden = true;
+  }
+
+  // ---------- Employees & projects ----------
+
+  async function loadEmployees() {
+    try {
+      const data = await api('/api/employees');
+      hideHomeError();
+      renderEmployees(data.employees);
+    } catch (err) {
+      if (!handleSessionExpiry(err)) showHomeError(err.message);
+    }
+  }
+
+  function renderEmployees(employees) {
+    els.employeeList.replaceChildren(...employees.map(employeeCard));
+    els.emptyState.hidden = employees.length > 0;
+  }
+
+  function employeeCard(employee) {
+    const card = document.createElement('section');
+    card.className = 'card employee-card';
+
+    const head = document.createElement('div');
+    head.className = 'employee-head';
+
+    const title = document.createElement('h3');
+    title.textContent = employee.name;
+
+    const remove = iconButton(`Delete employee ${employee.name}`, async () => {
+      const label =
+        employee.projects.length > 0
+          ? `Delete ${employee.name} and their ${employee.projects.length} project(s)?`
+          : `Delete ${employee.name}?`;
+      if (!window.confirm(label)) return;
+      try {
+        await api(`/api/employees/${employee.id}`, { method: 'DELETE' });
+        hideHomeError();
+        loadEmployees();
+      } catch (err) {
+        if (!handleSessionExpiry(err)) showHomeError(err.message);
+      }
+    });
+
+    head.append(title, remove);
+    card.append(head);
+
+    const list = document.createElement('ul');
+    list.className = 'project-list';
+
+    if (employee.projects.length === 0) {
+      const empty = document.createElement('li');
+      empty.className = 'empty-note';
+      empty.textContent = 'No projects yet';
+      list.append(empty);
+    } else {
+      for (const project of employee.projects) {
+        list.append(projectRow(employee, project));
+      }
+    }
+    card.append(list);
+
+    card.append(addProjectForm(employee));
+    return card;
+  }
+
+  function projectRow(employee, project) {
+    const row = document.createElement('li');
+    row.className = 'project-row';
+
+    const name = document.createElement('span');
+    name.className = 'project-name';
+    name.textContent = project.name;
+
+    const remove = iconButton(`Delete project ${project.name}`, async () => {
+      if (!window.confirm(`Delete project ${project.name}?`)) return;
+      try {
+        await api(`/api/employees/${employee.id}/projects/${project.id}`, {
+          method: 'DELETE',
+        });
+        hideHomeError();
+        loadEmployees();
+      } catch (err) {
+        if (!handleSessionExpiry(err)) showHomeError(err.message);
+      }
+    });
+
+    row.append(name, remove);
+    return row;
+  }
+
+  function addProjectForm(employee) {
+    const form = document.createElement('form');
+    form.className = 'add-project-form';
+    form.noValidate = true;
+
+    const input = document.createElement('input');
+    input.type = 'text';
+    input.maxLength = 120;
+    input.placeholder = 'New project (client) name';
+    input.setAttribute('aria-label', `New project for ${employee.name}`);
+
+    const button = document.createElement('button');
+    button.type = 'submit';
+    button.className = 'btn btn-ghost btn-compact';
+    button.textContent = 'Add project';
+
+    form.append(input, button);
+
+    form.addEventListener('submit', async (event) => {
+      event.preventDefault();
+      const name = input.value.trim();
+      if (!name) return;
+      button.disabled = true;
+      try {
+        await api(`/api/employees/${employee.id}/projects`, {
+          method: 'POST',
+          body: { name },
+        });
+        hideHomeError();
+        await loadEmployees();
+      } catch (err) {
+        if (!handleSessionExpiry(err)) showHomeError(err.message);
+      } finally {
+        button.disabled = false;
+      }
+    });
+
+    return form;
+  }
+
+  function iconButton(label, onClick) {
+    const button = document.createElement('button');
+    button.type = 'button';
+    button.className = 'btn-icon';
+    button.textContent = '✕';
+    button.setAttribute('aria-label', label);
+    button.title = label;
+    button.addEventListener('click', onClick);
+    return button;
+  }
+
+  els.employeeForm.addEventListener('submit', async (event) => {
+    event.preventDefault();
+    const name = els.employeeName.value.trim();
+    if (!name) return showHomeError('Please enter an employee name.');
+
+    const button = els.employeeForm.querySelector('button');
+    button.disabled = true;
+    try {
+      await api('/api/employees', { method: 'POST', body: { name } });
+      els.employeeName.value = '';
+      hideHomeError();
+      await loadEmployees();
+    } catch (err) {
+      if (!handleSessionExpiry(err)) showHomeError(err.message);
+    } finally {
+      button.disabled = false;
+    }
+  });
+
+  // ---------- Auth events ----------
 
   els.tabLogin.addEventListener('click', () => setMode('login'));
   els.tabSignup.addEventListener('click', () => setMode('signup'));

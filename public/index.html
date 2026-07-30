@@ -54,13 +54,21 @@
     </header>
 
     <main class="home-wrap">
-      <section class="card welcome-card">
-        <h2 id="welcome-title">Welcome back</h2>
-        <p class="welcome-copy">
-          You're signed in. Your performance dashboard — revenue goals, client
-          projects, productivity, and the bonus progress dial — is coming next.
-        </p>
+      <section class="page-head">
+        <h2>Employees</h2>
+        <form id="employee-form" class="inline-form" novalidate>
+          <label class="visually-hidden" for="employee-name">Employee name</label>
+          <input id="employee-name" type="text" maxlength="80" placeholder="Employee name" required />
+          <button type="submit" class="btn btn-primary btn-compact">Add employee</button>
+        </form>
       </section>
+
+      <p id="home-error" class="form-error" role="alert" hidden></p>
+
+      <div id="employee-list" class="employee-list"></div>
+      <p id="empty-state" class="empty-state" hidden>
+        No employees yet — add the first one above, then create client projects under them.
+      </p>
     </main>
   </div>
 

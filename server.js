@@ -51,6 +51,7 @@ app.use('/api', (req, res, next) => {
 });
 
 app.use('/api/auth', authRoutes);
+app.use('/api/employees', require('./routes/employees'));
 
 app.use('/api', (req, res) => {
   res.status(404).json({ error: 'Not found' });
