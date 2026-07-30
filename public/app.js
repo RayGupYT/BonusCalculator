@@ -55,6 +55,17 @@
     dial: document.getElementById('dial'),
     dialStatus: document.getElementById('dial-status'),
     prorationNote: document.getElementById('proration-note'),
+    progressBar: document.getElementById('progress-bar'),
+    progressFill: document.getElementById('progress-fill'),
+    progressOver: document.getElementById('progress-over'),
+    progressTickGoal: document.getElementById('progress-tick-goal'),
+    progressTickPace: document.getElementById('progress-tick-pace'),
+    progressEndLabel: document.getElementById('progress-end-label'),
+    kpiGoal: document.getElementById('kpi-goal'),
+    kpiCurrentLabel: document.getElementById('kpi-current-label'),
+    kpiCurrent: document.getElementById('kpi-current'),
+    kpiPace: document.getElementById('kpi-pace'),
+    kpiPct: document.getElementById('kpi-pct'),
     dialForm: document.getElementById('dial-form'),
     dialMin: document.getElementById('dial-min'),
     dialMax: document.getElementById('dial-max'),
@@ -240,6 +251,7 @@
     renderDial(data);
     renderDialStatus(data.computed);
     renderProration(data);
+    renderProgress(data);
 
     els.dialMin.value = String(data.settings.dialMin);
     els.dialMax.value = String(data.settings.dialMax);
@@ -262,6 +274,99 @@
       )
     );
     els.employeeProjectsEmpty.hidden = data.projects.length > 0;
+  }
+
+  // ---------- Progress bar (goal pacing; percent may exceed 100) ----------
+
+  // Fraction of the earning window elapsed "today" for the viewed year.
+  // The window starts at the hire date when hired during that year.
+  function elapsedFraction(data) {
+    const now = new Date();
+    const year = data.year;
+    if (year < now.getFullYear()) return 1;
+    if (year > now.getFullYear()) return 0;
+
+    let windowStart = new Date(year, 0, 1);
+    const hire = data.settings.hireDate
+      ? new Date(`${data.settings.hireDate}T00:00:00`)
+      : null;
+    if (hire && hire.getFullYear() === year && hire > windowStart) {
+      windowStart = hire;
+    }
+    const windowEnd = new Date(year + 1, 0, 1);
+    const span = windowEnd - windowStart;
+    if (span <= 0) return 1;
+    return Math.min(1, Math.max(0, (now - windowStart) / span));
+  }
+
+  function renderProgress(data) {
+    const total = data.totalRevenue;
+    const goal = data.computed.thresholdValue;
+    const year = data.year;
+
+    els.kpiGoal.textContent = goal > 0 ? money.format(goal) : '—';
+    els.kpiCurrentLabel.textContent = `${year} revenue`;
+    els.kpiCurrent.textContent = money.format(total);
+
+    // Percent of goal — may exceed 100.
+    const pct = goal > 0 ? (total / goal) * 100 : null;
+    els.kpiPct.textContent = pct === null ? '—' : `${Math.round(pct)}%`;
+
+    // Pace: where they should be today to stay on track for Dec 31.
+    const elapsed = elapsedFraction(data);
+    const paceTarget = goal * elapsed;
+    const delta = total - paceTarget;
+    els.kpiPace.classList.remove('is-good', 'is-bad');
+    if (goal <= 0) {
+      els.kpiPace.textContent = '—';
+    } else if (elapsed === 0) {
+      els.kpiPace.textContent = `Starts in ${year}`;
+    } else if (elapsed === 1) {
+      if (total >= goal) {
+        els.kpiPace.textContent = 'Goal met';
+        els.kpiPace.classList.add('is-good');
+      } else {
+        els.kpiPace.textContent = `${money.format(goal - total)} short`;
+        els.kpiPace.classList.add('is-bad');
+      }
+    } else if (Math.abs(delta) < 0.5) {
+      els.kpiPace.textContent = 'On pace';
+    } else if (delta > 0) {
+      els.kpiPace.textContent = `${money.format(delta)} ahead`;
+      els.kpiPace.classList.add('is-good');
+    } else {
+      els.kpiPace.textContent = `${money.format(-delta)} behind`;
+      els.kpiPace.classList.add('is-bad');
+    }
+
+    // Bar domain stretches to cover overshoot: [0, max(goal, total)].
+    const domain = Math.max(goal, total, 1);
+    const fillPct = (Math.min(total, goal) / domain) * 100;
+    const overPct = total > goal ? ((total - goal) / domain) * 100 : 0;
+    const goalPct = (goal / domain) * 100;
+
+    els.progressFill.style.width = `${fillPct}%`;
+    els.progressOver.style.left = `${fillPct}%`;
+    els.progressOver.style.width = `${overPct}%`;
+
+    els.progressTickGoal.hidden = goal <= 0;
+    els.progressTickGoal.style.left = `${goalPct}%`;
+    els.progressTickGoal.title = `Bonus goal: ${money.format(goal)}`;
+
+    const showPace = goal > 0 && elapsed > 0 && elapsed < 1;
+    els.progressTickPace.hidden = !showPace;
+    if (showPace) {
+      els.progressTickPace.style.left = `${(paceTarget / domain) * 100}%`;
+      els.progressTickPace.title = `On-track target today: ${money.format(paceTarget)}`;
+    }
+
+    els.progressEndLabel.textContent = moneyCompact.format(domain);
+    els.progressBar.setAttribute(
+      'aria-label',
+      goal > 0
+        ? `${year} revenue ${money.format(total)} of ${money.format(goal)} bonus goal (${Math.round(pct)}%); ${els.kpiPace.textContent} versus today's on-track target`
+        : `${year} revenue ${money.format(total)}; no bonus goal configured`
+    );
   }
 
   function renderProration(data) {

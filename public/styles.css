@@ -749,6 +749,103 @@ h1, h2, h3, p {
   margin: 6px 0 0;
 }
 
+/* Progress-to-bonus bar (scale stretches past the goal when over 100%) */
+.progress-block {
+  border-top: 1px solid var(--line);
+  margin-top: 22px;
+  padding-top: 18px;
+}
+
+.progress-bar {
+  position: relative;
+  margin-top: 12px;
+  padding: 4px 0;
+}
+
+.progress-clip {
+  position: relative;
+  height: 14px;
+  border-radius: 7px;
+  background: var(--dial-track);
+  overflow: hidden;
+}
+
+.progress-fill,
+.progress-over {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: 0;
+}
+
+.progress-fill {
+  background: var(--accent);
+  border-radius: 7px 0 0 7px;
+}
+
+.progress-over {
+  background: var(--status-good);
+}
+
+.progress-tick-goal,
+.progress-tick-pace {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  transform: translateX(-50%);
+}
+
+.progress-tick-goal {
+  width: 2.5px;
+  background: var(--ink-2);
+}
+
+.progress-tick-pace {
+  width: 2px;
+  background: var(--muted);
+  top: 3px;
+  bottom: 3px;
+}
+
+.progress-labels {
+  display: flex;
+  justify-content: space-between;
+  font-size: 11.5px;
+  color: var(--muted);
+  margin-top: 6px;
+}
+
+.kpi-row {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+  gap: 12px;
+  margin-top: 16px;
+}
+
+.kpi {
+  display: grid;
+  gap: 2px;
+}
+
+.kpi-label {
+  font-size: 12px;
+  color: var(--ink-2);
+}
+
+.kpi-value {
+  font-size: 17px;
+  font-weight: 650;
+  letter-spacing: -0.01em;
+}
+
+.kpi-value.is-good {
+  color: var(--good);
+}
+
+.kpi-value.is-bad {
+  color: var(--danger);
+}
+
 .dial-form {
   border-top: 1px solid var(--line);
   margin-top: 22px;

@@ -177,6 +177,40 @@
         <p class="dial-status" id="dial-status"></p>
         <p class="proration-note" id="proration-note" hidden></p>
 
+        <div class="progress-block">
+          <h3 class="summary-h">Progress to bonus</h3>
+          <div class="progress-bar" id="progress-bar" role="img">
+            <div class="progress-clip">
+              <div class="progress-fill" id="progress-fill"></div>
+              <div class="progress-over" id="progress-over"></div>
+            </div>
+            <div class="progress-tick-goal" id="progress-tick-goal"></div>
+            <div class="progress-tick-pace" id="progress-tick-pace" hidden></div>
+          </div>
+          <div class="progress-labels">
+            <span>$0</span>
+            <span id="progress-end-label"></span>
+          </div>
+          <div class="kpi-row">
+            <div class="kpi">
+              <span class="kpi-label">Bonus goal (Dec 31)</span>
+              <span class="kpi-value" id="kpi-goal"></span>
+            </div>
+            <div class="kpi">
+              <span class="kpi-label" id="kpi-current-label">Revenue</span>
+              <span class="kpi-value" id="kpi-current"></span>
+            </div>
+            <div class="kpi">
+              <span class="kpi-label">Pace</span>
+              <span class="kpi-value" id="kpi-pace"></span>
+            </div>
+            <div class="kpi">
+              <span class="kpi-label">Of goal</span>
+              <span class="kpi-value" id="kpi-pct"></span>
+            </div>
+          </div>
+        </div>
+
         <form id="dial-form" class="dial-form" novalidate>
           <h3 class="summary-h">Dial settings</h3>
           <div class="dial-fields">
