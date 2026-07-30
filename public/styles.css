@@ -40,6 +40,11 @@
   box-sizing: border-box;
 }
 
+/* Class display rules (e.g. .auth-wrap's grid) must not defeat the hidden attribute. */
+[hidden] {
+  display: none !important;
+}
+
 body {
   margin: 0;
   font-family: system-ui, -apple-system, "Segoe UI", sans-serif;
