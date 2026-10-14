@@ -53,6 +53,7 @@ app.use('/api', (req, res, next) => {
 
 app.use('/api/auth', authRoutes);
 app.use('/api/employees', require('./routes/employees'));
+app.use('/api/import', require('./routes/import'));
 
 app.use('/api', (req, res) => {
   res.status(404).json({ error: 'Not found' });
@@ -67,6 +68,11 @@ app.use((req, res, next) => {
 app.use((err, req, res, next) => {
   if (err.type === 'entity.parse.failed') {
     return res.status(400).json({ error: 'Invalid JSON in request body' });
+  }
+  if (err.type === 'entity.too.large') {
+    return res
+      .status(413)
+      .json({ error: 'That file is too large — split the CSV into smaller files.' });
   }
   console.error(err);
   res.status(500).json({ error: 'Server error' });

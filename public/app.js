@@ -25,6 +25,24 @@
     pwSuccess: document.getElementById('pw-success'),
     pwCancel: document.getElementById('pw-cancel'),
     pageEmployees: document.getElementById('page-employees'),
+    btnImport: document.getElementById('btn-import'),
+    importDialog: document.getElementById('import-dialog'),
+    importForm: document.getElementById('import-form'),
+    importFile: document.getElementById('import-file'),
+    importPaste: document.getElementById('import-paste'),
+    importConflict: document.getElementById('import-conflict'),
+    importPartial: document.getElementById('import-partial'),
+    importPartialRow: document.getElementById('import-partial-row'),
+    importTemplate: document.getElementById('import-template'),
+    importError: document.getElementById('import-error'),
+    importSuccess: document.getElementById('import-success'),
+    importReport: document.getElementById('import-report'),
+    importStats: document.getElementById('import-stats'),
+    importTree: document.getElementById('import-tree'),
+    importIssues: document.getElementById('import-issues'),
+    importPreview: document.getElementById('import-preview'),
+    importCommit: document.getElementById('import-commit'),
+    importCancel: document.getElementById('import-cancel'),
     employeeForm: document.getElementById('employee-form'),
     employeeName: document.getElementById('employee-name'),
     employeeList: document.getElementById('employee-list'),
@@ -1128,6 +1146,324 @@
     } finally {
       button.disabled = false;
     }
+  });
+
+  // ---------- CSV import ----------
+
+  const IMPORT_MAX_BYTES = 4 * 1024 * 1024;
+
+  const IMPORT_TEMPLATE = [
+    'Employee,Project,Client,Year,Month,Amount,MRR,Active,Min,Max,Threshold,Bonus Rate,Hire Date',
+    'Alex Johnson,Acme Website,Acme Corporation,2026,Jan,12500,12500,yes,1000000,2000000,67,1.5,',
+    'Alex Johnson,Acme Website,Acme Corporation,2026,Feb,12500,12500,yes,,,,,',
+    'Alex Johnson,Bluebird App,Bluebird Ltd,2026,Jan,8000,8000,yes,,,,,',
+    'Dana Smith,Northwind Retainer,Northwind Inc,2026,Jan,15000,15000,yes,800000,1600000,70,2,2026-04-01',
+    'Dana Smith,Northwind Retainer,Northwind Inc,2026,Feb,15000,15000,yes,,,,,',
+  ].join('\r\n');
+
+  // The CSV goes up as a raw text/csv body, so it needs no JSON escaping and
+  // is not held to the small JSON body limit.
+  async function postCsv(csv, { dryRun, onConflict, allowPartial }) {
+    const params = new URLSearchParams({ onConflict });
+    if (dryRun) params.set('dryRun', '1');
+    if (allowPartial) params.set('allowPartial', '1');
+
+    const headers = { 'Content-Type': 'text/csv' };
+    const token = localStorage.getItem(TOKEN_KEY);
+    if (token) headers.Authorization = `Bearer ${token}`;
+
+    let res;
+    try {
+      res = await fetch(`/api/import/csv?${params}`, { method: 'POST', headers, body: csv });
+    } catch {
+      throw new Error('Network error — check your connection and try again.');
+    }
+
+    let data = null;
+    try {
+      data = await res.json();
+    } catch {
+      /* non-JSON response */
+    }
+
+    if (!res.ok) {
+      const err = new Error((data && data.error) || `Request failed (${res.status})`);
+      err.status = res.status;
+      err.report = data;
+      throw err;
+    }
+    return data;
+  }
+
+  async function readCsvInput() {
+    const file = els.importFile.files && els.importFile.files[0];
+    if (file) {
+      if (file.size > IMPORT_MAX_BYTES) {
+        throw new Error('That file is larger than 4 MB — split it into smaller files.');
+      }
+      return file.text();
+    }
+    if (els.importPaste.value.trim() !== '') return els.importPaste.value;
+    throw new Error('Choose a CSV file or paste some rows first.');
+  }
+
+  function showImportError(message) {
+    els.importError.textContent = message;
+    els.importError.hidden = false;
+  }
+
+  function resetImportReport() {
+    els.importError.hidden = true;
+    els.importSuccess.hidden = true;
+    els.importReport.hidden = true;
+    els.importStats.replaceChildren();
+    els.importTree.replaceChildren();
+    els.importIssues.replaceChildren();
+    els.importCommit.disabled = true;
+  }
+
+  function statTile(label, value) {
+    const tile = document.createElement('div');
+    tile.className = 'import-stat';
+    const labelEl = document.createElement('span');
+    labelEl.className = 'import-stat-label';
+    labelEl.textContent = label;
+    const valueEl = document.createElement('span');
+    valueEl.className = 'import-stat-value';
+    valueEl.textContent = value;
+    tile.append(labelEl, valueEl);
+    return tile;
+  }
+
+  function importTag(text, existing) {
+    const tag = document.createElement('span');
+    tag.className = existing ? 'import-tag is-existing' : 'import-tag';
+    tag.textContent = text;
+    return tag;
+  }
+
+  function issueList(title, items, isError) {
+    const fragment = document.createDocumentFragment();
+    const head = document.createElement('p');
+    head.className = isError ? 'import-issues-head is-error-head' : 'import-issues-head';
+    head.textContent = title;
+    const list = document.createElement('ul');
+    for (const item of items) {
+      const li = document.createElement('li');
+      if (isError) li.className = 'is-error';
+      li.textContent = item;
+      list.append(li);
+    }
+    fragment.append(head, list);
+    return fragment;
+  }
+
+  function changeCount(summary) {
+    return (
+      summary.employeesCreated +
+      summary.projectsCreated +
+      summary.projectsUpdated +
+      summary.settingsChanged +
+      summary.monthsCreated +
+      summary.monthsUpdated
+    );
+  }
+
+  function renderImportReport(report) {
+    const summary = report.summary;
+
+    els.importStats.replaceChildren(
+      statTile('Rows read', String(summary.rows)),
+      statTile('New employees', String(summary.employeesCreated)),
+      statTile('New projects', String(summary.projectsCreated)),
+      statTile('Months added', String(summary.monthsCreated)),
+      statTile('Months changed', String(summary.monthsUpdated)),
+      statTile('Revenue', money.format(summary.revenueTotal))
+    );
+
+    // One line for the things that are matched rather than created.
+    const notes = [];
+    if (summary.employeesMatched > 0) notes.push(`${summary.employeesMatched} existing employee(s) matched`);
+    if (summary.projectsMatched > 0) notes.push(`${summary.projectsMatched} existing project(s) matched`);
+    if (summary.settingsChanged > 0) notes.push(`${summary.settingsChanged} dial setting(s) updated`);
+    if (summary.monthsUnchanged > 0) notes.push(`${summary.monthsUnchanged} month(s) already identical`);
+    if (summary.monthsSkipped > 0) notes.push(`${summary.monthsSkipped} month(s) left as they are`);
+
+    els.importTree.replaceChildren();
+    if (notes.length > 0) {
+      const note = document.createElement('p');
+      note.className = 'import-intro';
+      note.textContent = `${notes.join(' · ')}.`;
+      els.importTree.append(note);
+    }
+
+    for (const employee of report.employees) {
+      const block = document.createElement('div');
+      block.className = 'import-tree-employee';
+
+      const name = document.createElement('div');
+      name.className = 'import-tree-name';
+      name.textContent = employee.name;
+      name.append(importTag(employee.created ? 'new' : 'existing', !employee.created));
+      if (employee.settingsChanged.length > 0) {
+        name.append(importTag('dial', true));
+      }
+      block.append(name);
+
+      const list = document.createElement('ul');
+      list.className = 'import-tree-projects';
+      for (const project of employee.projects) {
+        const row = document.createElement('li');
+        const label = document.createElement('span');
+        label.textContent = project.name;
+        if (project.created) label.append(importTag('new', false));
+
+        const parts = [];
+        if (project.monthsCreated > 0) parts.push(`+${project.monthsCreated} month(s)`);
+        if (project.monthsUpdated > 0) parts.push(`${project.monthsUpdated} changed`);
+        if (project.monthsSkipped > 0) parts.push(`${project.monthsSkipped} kept`);
+        if (project.monthsUnchanged > 0 && parts.length === 0) parts.push('no change');
+        if (project.attrChanges.length > 0) parts.push(project.attrChanges.join(', '));
+
+        const detail = document.createElement('span');
+        detail.textContent = parts.join(' · ') || '—';
+        row.append(label, detail);
+        list.append(row);
+      }
+      block.append(list);
+      els.importTree.append(block);
+    }
+
+    els.importIssues.replaceChildren();
+    if (report.errorCount > 0) {
+      const messages = report.errors.map((e) =>
+        e.line > 0 ? `Line ${e.line}: ${e.message}` : e.message
+      );
+      if (report.errorCount > report.errors.length) {
+        messages.push(`…and ${report.errorCount - report.errors.length} more.`);
+      }
+      els.importIssues.append(
+        issueList(`${report.errorCount} row problem(s)`, messages, true)
+      );
+    }
+    if (report.warningCount > 0) {
+      const messages = [...report.warnings];
+      if (report.warningCount > report.warnings.length) {
+        messages.push(`…and ${report.warningCount - report.warnings.length} more.`);
+      }
+      els.importIssues.append(issueList(`${report.warningCount} note(s)`, messages, false));
+    }
+
+    els.importPartialRow.hidden = report.errorCount === 0;
+    if (report.errorCount === 0) els.importPartial.checked = false;
+
+    els.importReport.hidden = false;
+
+    const changes = changeCount(summary);
+    els.importCommit.disabled = !report.canImport || changes === 0;
+    if (changes === 0 && report.errorCount === 0) {
+      showImportError('Nothing to import — the file matches what is already stored.');
+    } else if (!report.canImport) {
+      showImportError(
+        'Some rows could not be read. Fix them, or tick the box above to import the rest.'
+      );
+    }
+  }
+
+  async function runImport(dryRun) {
+    resetImportReport();
+
+    let csv;
+    try {
+      csv = await readCsvInput();
+    } catch (err) {
+      return showImportError(err.message);
+    }
+
+    const options = {
+      dryRun,
+      onConflict: els.importConflict.value === 'skip' ? 'skip' : 'overwrite',
+      allowPartial: els.importPartial.checked,
+    };
+
+    els.importPreview.disabled = true;
+    els.importCommit.disabled = true;
+    try {
+      const report = await postCsv(csv, options);
+      renderImportReport(report);
+
+      if (report.imported) {
+        const summary = report.summary;
+        els.importSuccess.textContent = `Imported — ${summary.employeesCreated} new employee(s), ${summary.projectsCreated} new project(s), ${summary.monthsCreated + summary.monthsUpdated} month value(s).`;
+        els.importSuccess.hidden = false;
+        els.importError.hidden = true;
+        els.importCommit.disabled = true;
+        await loadEmployees();
+      }
+    } catch (err) {
+      if (handleSessionExpiry(err)) {
+        els.importDialog.close();
+        return;
+      }
+      // A rejected import still carries the full report, so show it.
+      if (err.report && err.report.summary) renderImportReport(err.report);
+      else if (err.report && Array.isArray(err.report.errors)) {
+        els.importIssues.replaceChildren(
+          issueList(
+            `${err.report.errors.length} problem(s)`,
+            err.report.errors.map((e) => (e.line > 0 ? `Line ${e.line}: ${e.message}` : e.message)),
+            true
+          )
+        );
+        els.importReport.hidden = false;
+      }
+      showImportError(err.message);
+    } finally {
+      els.importPreview.disabled = false;
+    }
+  }
+
+  els.btnImport.addEventListener('click', () => {
+    els.importForm.reset();
+    els.importPartialRow.hidden = true;
+    resetImportReport();
+    els.importDialog.showModal();
+    els.importFile.focus();
+  });
+
+  els.importCancel.addEventListener('click', () => {
+    els.importDialog.close();
+  });
+
+  // Picking a file is the clearest moment to show what the import would do.
+  els.importFile.addEventListener('change', () => {
+    if (els.importFile.files && els.importFile.files.length > 0) runImport(true);
+  });
+
+  els.importPaste.addEventListener('input', resetImportReport);
+  els.importConflict.addEventListener('change', resetImportReport);
+  els.importPartial.addEventListener('change', () => {
+    els.importError.hidden = true;
+    runImport(true);
+  });
+
+  els.importPreview.addEventListener('click', () => runImport(true));
+
+  els.importForm.addEventListener('submit', (event) => {
+    event.preventDefault();
+    runImport(false);
+  });
+
+  els.importTemplate.addEventListener('click', () => {
+    const blob = new Blob([IMPORT_TEMPLATE], { type: 'text/csv;charset=utf-8' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = 'bonus-calculator-template.csv';
+    document.body.append(link);
+    link.click();
+    link.remove();
+    setTimeout(() => URL.revokeObjectURL(url), 0);
   });
 
   // ---------- Init ----------

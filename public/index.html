@@ -78,15 +78,92 @@
       </form>
     </dialog>
 
+    <dialog id="import-dialog" class="import-dialog">
+      <form id="import-form" novalidate>
+        <h3>Import from CSV</h3>
+        <p class="import-intro">
+          Adds the employees, projects, and monthly revenue found in the file.
+          Employees and projects that already exist are matched by name, not duplicated.
+        </p>
+
+        <div class="field">
+          <label for="import-file">CSV file</label>
+          <input id="import-file" type="file" accept=".csv,.tsv,.txt,text/csv,text/plain" />
+        </div>
+
+        <div class="field">
+          <label for="import-paste">…or paste rows (including the header row)</label>
+          <textarea id="import-paste" rows="3" spellcheck="false"
+            placeholder="Employee,Project,Client,Year,Month,Amount"></textarea>
+        </div>
+
+        <details class="import-help">
+          <summary>Which columns can I use?</summary>
+          <p>
+            A header row is required. <strong>Employee</strong> and <strong>Project</strong>
+            are the only mandatory columns. Revenue can be given either way:
+          </p>
+          <ul>
+            <li><strong>One row per month</strong> — add <code>Year</code>, <code>Month</code> and <code>Amount</code>.</li>
+            <li><strong>One column per month</strong> — name the columns <code>Jan 2026</code>, <code>2026-02</code>, …
+              (or use plain <code>Jan</code>…<code>Dec</code> plus a <code>Year</code> column).</li>
+          </ul>
+          <p>
+            Optional: <code>Client</code>, <code>MRR</code>, <code>Active</code>, and the
+            bonus dial per employee — <code>Min</code>, <code>Max</code>,
+            <code>Threshold</code>, <code>Bonus Rate</code>, <code>Hire Date</code>.
+            Amounts may include <code>$</code> and thousands separators. Blank
+            amounts are skipped; <code>0</code> is stored as zero.
+          </p>
+          <button type="button" class="btn btn-ghost btn-compact" id="import-template">
+            Download a template
+          </button>
+        </details>
+
+        <div class="field">
+          <label for="import-conflict">When a month already has a value</label>
+          <select id="import-conflict">
+            <option value="overwrite">Replace it with the value from the file</option>
+            <option value="skip">Keep the existing value</option>
+          </select>
+        </div>
+
+        <label class="check-row" for="import-partial" id="import-partial-row" hidden>
+          <input id="import-partial" type="checkbox" />
+          Import the valid rows and skip the ones with problems
+        </label>
+
+        <p id="import-error" class="form-error" role="alert" hidden></p>
+        <p id="import-success" class="save-note" hidden></p>
+
+        <div id="import-report" class="import-report" hidden>
+          <div class="import-stats" id="import-stats"></div>
+          <div id="import-tree" class="import-tree"></div>
+          <div id="import-issues" class="import-issues"></div>
+        </div>
+
+        <div class="import-actions">
+          <button type="button" class="btn btn-ghost btn-compact" id="import-cancel">Close</button>
+          <button type="button" class="btn btn-ghost btn-compact" id="import-preview">Preview</button>
+          <button type="submit" class="btn btn-primary btn-compact" id="import-commit" disabled>
+            Import
+          </button>
+        </div>
+      </form>
+    </dialog>
+
     <!-- Page: employees hierarchy -->
     <main class="home-wrap" id="page-employees">
       <section class="page-head">
         <h2>Employees</h2>
-        <form id="employee-form" class="inline-form" novalidate>
-          <label class="visually-hidden" for="employee-name">Employee name</label>
-          <input id="employee-name" type="text" maxlength="80" placeholder="Employee name" required />
-          <button type="submit" class="btn btn-primary btn-compact">Add employee</button>
-        </form>
+        <div class="page-head-actions">
+          <button type="button" class="btn btn-ghost btn-compact" id="btn-import">Import CSV</button>
+          <form id="employee-form" class="inline-form" novalidate>
+            <label class="visually-hidden" for="employee-name">Employee name</label>
+            <input id="employee-name" type="text" maxlength="80" placeholder="Employee name" required />
+            <button type="submit" class="btn btn-primary btn-compact">Add employee</button>
+          </form>
+        </div>
       </section>
 
       <p id="home-error" class="form-error" role="alert" hidden></p>
