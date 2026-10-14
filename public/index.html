@@ -221,6 +221,52 @@
 
       <p id="home-error" class="form-error" role="alert" hidden></p>
 
+      <section class="card overview-card" id="overview-card" hidden>
+        <div class="overview-head">
+          <h3 class="summary-h">Everyone at a glance</h3>
+          <div>
+            <label class="visually-hidden" for="overview-year">Year</label>
+            <select id="overview-year" class="year-select"></select>
+          </div>
+        </div>
+
+        <div class="kpi-row" id="overview-totals">
+          <div class="kpi">
+            <span class="kpi-label">Employees</span>
+            <span class="kpi-value" id="overview-count"></span>
+          </div>
+          <div class="kpi">
+            <span class="kpi-label" id="overview-revenue-label">Revenue</span>
+            <span class="kpi-value" id="overview-revenue"></span>
+          </div>
+          <div class="kpi">
+            <span class="kpi-label">Bonuses earned</span>
+            <span class="kpi-value" id="overview-bonus"></span>
+          </div>
+          <div class="kpi">
+            <span class="kpi-label">In bonus</span>
+            <span class="kpi-value" id="overview-inbonus"></span>
+          </div>
+        </div>
+
+        <div class="overview-table-wrap">
+          <table class="overview-table">
+            <thead>
+              <tr>
+                <th scope="col">Employee</th>
+                <th scope="col" class="num">Projects</th>
+                <th scope="col" class="num">Revenue</th>
+                <th scope="col" class="num">Bonus goal</th>
+                <th scope="col" class="num">Of goal</th>
+                <th scope="col">Pace</th>
+                <th scope="col" class="num">Bonus</th>
+              </tr>
+            </thead>
+            <tbody id="overview-rows"></tbody>
+          </table>
+        </div>
+      </section>
+
       <div id="employee-list" class="employee-list"></div>
       <p id="empty-state" class="empty-state" hidden>
         No employees yet — add the first one above, then create client projects under them.

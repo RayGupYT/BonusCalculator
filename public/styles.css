@@ -1445,3 +1445,87 @@ h1, h2, h3, p {
     justify-content: space-between;
   }
 }
+
+/* ---------- Home overview ---------- */
+.overview-card {
+  margin-bottom: 18px;
+  padding: 22px;
+}
+
+.overview-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 12px;
+  margin-bottom: 16px;
+}
+
+.overview-head .summary-h {
+  margin: 0;
+}
+
+.overview-card .kpi-row {
+  margin-bottom: 18px;
+}
+
+.overview-table-wrap {
+  overflow-x: auto;
+}
+
+.overview-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 13.5px;
+}
+
+.overview-table th {
+  text-align: left;
+  font-size: 11.5px;
+  font-weight: 650;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--muted);
+  padding: 0 10px 8px;
+  border-bottom: 1px solid var(--line);
+  white-space: nowrap;
+}
+
+.overview-table td {
+  padding: 9px 10px;
+  border-bottom: 1px solid var(--line);
+  white-space: nowrap;
+}
+
+.overview-table tr:last-child td {
+  border-bottom: 0;
+}
+
+.overview-table th.num,
+.overview-table td.num {
+  text-align: right;
+}
+
+.overview-table td:first-child,
+.overview-table th:first-child {
+  padding-left: 0;
+}
+
+.overview-table td:last-child,
+.overview-table th:last-child {
+  padding-right: 0;
+}
+
+.overview-table .employee-link {
+  font-size: 13.5px;
+}
+
+.overview-table .is-good {
+  color: var(--good);
+  font-weight: 600;
+}
+
+.overview-table .is-bad {
+  color: var(--danger);
+  font-weight: 600;
+}

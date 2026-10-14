@@ -3,9 +3,9 @@
 Web app that tracks employee performance, client revenue, and bonus earnings
 throughout the year.
 
-**Status:** auth, employee and project dashboards, monthly revenue tracking,
-the bonus dial with pacing, CSV import, and shareable read-only reports.
-Productivity tracking is next.
+**Status:** auth, a home overview of everyone, employee and project dashboards,
+monthly revenue tracking, the bonus dial with pacing, CSV import, and shareable
+read-only reports. Productivity tracking is next.
 
 ## Stack
 

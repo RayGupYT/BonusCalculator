@@ -46,6 +46,14 @@
     employeeForm: document.getElementById('employee-form'),
     employeeName: document.getElementById('employee-name'),
     employeeList: document.getElementById('employee-list'),
+    overviewCard: document.getElementById('overview-card'),
+    overviewYear: document.getElementById('overview-year'),
+    overviewCount: document.getElementById('overview-count'),
+    overviewRevenueLabel: document.getElementById('overview-revenue-label'),
+    overviewRevenue: document.getElementById('overview-revenue'),
+    overviewBonus: document.getElementById('overview-bonus'),
+    overviewInBonus: document.getElementById('overview-inbonus'),
+    overviewRows: document.getElementById('overview-rows'),
     emptyState: document.getElementById('empty-state'),
     homeError: document.getElementById('home-error'),
     pageProject: document.getElementById('page-project'),
@@ -381,6 +389,7 @@
       const data = await api('/api/employees');
       hideHomeError();
       renderEmployees(data.employees);
+      loadOverview();
     } catch (err) {
       if (!handleSessionExpiry(err)) showHomeError(err.message);
     }
@@ -390,6 +399,120 @@
     els.employeeList.replaceChildren(...employees.map(employeeCard));
     els.emptyState.hidden = employees.length > 0;
   }
+
+  // ---------- Home overview: everyone's headline numbers in one table ----------
+
+  let overviewYear = null; // sticks across reloads of the employees page
+
+  function paceCell(row, year) {
+    const cell = document.createElement('td');
+    if (row.goal <= 0) {
+      cell.textContent = '—';
+      return cell;
+    }
+    const elapsed = window.BonusReportView.elapsedFraction({
+      year,
+      settings: { hireDate: row.hireDate },
+    });
+    const delta = row.totalRevenue - row.goal * elapsed;
+    if (elapsed === 0) {
+      cell.textContent = `Starts in ${year}`;
+    } else if (elapsed === 1) {
+      cell.textContent = row.bonusStarted
+        ? 'Goal met'
+        : `${moneyCompact.format(row.remainingToBonus)} short`;
+      cell.className = row.bonusStarted ? 'is-good' : 'is-bad';
+    } else if (Math.abs(delta) < 0.5) {
+      cell.textContent = 'On pace';
+    } else if (delta > 0) {
+      cell.textContent = `${moneyCompact.format(delta)} ahead`;
+      cell.className = 'is-good';
+    } else {
+      cell.textContent = `${moneyCompact.format(-delta)} behind`;
+      cell.className = 'is-bad';
+    }
+    return cell;
+  }
+
+  function overviewRow(row, year) {
+    const tr = document.createElement('tr');
+
+    const nameCell = document.createElement('td');
+    const open = document.createElement('button');
+    open.type = 'button';
+    open.className = 'employee-link';
+    open.textContent = row.name;
+    open.setAttribute('aria-label', `Open dashboard for ${row.name}`);
+    open.addEventListener('click', () => openEmployee(row.id, year));
+    nameCell.append(open);
+
+    const projects = document.createElement('td');
+    projects.className = 'num';
+    projects.textContent =
+      row.projectCount === row.activeCount
+        ? String(row.projectCount)
+        : `${row.activeCount} of ${row.projectCount}`;
+
+    const revenue = document.createElement('td');
+    revenue.className = 'num';
+    revenue.textContent = money.format(row.totalRevenue);
+
+    const goal = document.createElement('td');
+    goal.className = 'num';
+    goal.textContent = row.goal > 0 ? money.format(row.goal) : '—';
+
+    const pct = document.createElement('td');
+    pct.className = 'num';
+    pct.textContent =
+      row.goal > 0 ? `${Math.round((row.totalRevenue / row.goal) * 100)}%` : '—';
+
+    const bonus = document.createElement('td');
+    bonus.className = row.bonusStarted ? 'num is-good' : 'num';
+    bonus.textContent = row.bonusStarted ? money.format(row.bonus) : '—';
+
+    tr.append(nameCell, projects, revenue, goal, pct, paceCell(row, year), bonus);
+    return tr;
+  }
+
+  function renderOverview(data) {
+    els.overviewYear.replaceChildren(
+      ...data.availableYears.map((year) => {
+        const option = document.createElement('option');
+        option.value = String(year);
+        option.textContent = String(year);
+        option.selected = year === data.year;
+        return option;
+      })
+    );
+
+    els.overviewCount.textContent = String(data.totals.employees);
+    els.overviewRevenueLabel.textContent = `${data.year} revenue`;
+    els.overviewRevenue.textContent = money.format(data.totals.revenue);
+    els.overviewBonus.textContent = money.format(data.totals.bonus);
+    const inBonus = data.employees.filter((row) => row.bonusStarted).length;
+    els.overviewInBonus.textContent = `${inBonus} of ${data.totals.employees}`;
+
+    els.overviewRows.replaceChildren(
+      ...data.employees.map((row) => overviewRow(row, data.year))
+    );
+    els.overviewCard.hidden = data.employees.length === 0;
+  }
+
+  async function loadOverview() {
+    try {
+      const query = overviewYear ? `?year=${overviewYear}` : '';
+      const data = await api(`/api/employees/overview${query}`);
+      overviewYear = data.year;
+      renderOverview(data);
+    } catch (err) {
+      if (!handleSessionExpiry(err)) showHomeError(err.message);
+    }
+  }
+
+  els.overviewYear.addEventListener('change', () => {
+    overviewYear = Number(els.overviewYear.value);
+    loadOverview();
+  });
 
   function employeeCard(employee) {
     const card = document.createElement('section');

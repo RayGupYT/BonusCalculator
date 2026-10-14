@@ -5,7 +5,7 @@ const Employee = require('../models/Employee');
 const Project = require('../models/Project');
 const Share = require('../models/Share');
 const requireAuth = require('../middleware/auth');
-const { buildEmployeeSummary, round2 } = require('../lib/employeeSummary');
+const { buildEmployeeSummary, resolveYear, round2 } = require('../lib/employeeSummary');
 
 const router = express.Router();
 
@@ -103,6 +103,61 @@ router.get('/', async (req, res, next) => {
         name: employee.name,
         projects: byEmployee.get(employee._id.toString()) || [],
       })),
+    });
+  } catch (err) {
+    next(err);
+  }
+});
+
+// Home overview: every employee's headline numbers for one year, in one call.
+router.get('/overview', async (req, res, next) => {
+  try {
+    const [employees, projects] = await Promise.all([
+      Employee.find({ userId: req.user._id }).sort({ createdAt: 1 }),
+      Project.find({ userId: req.user._id }).sort({ createdAt: 1 }),
+    ]);
+
+    const byEmployee = new Map();
+    for (const project of projects) {
+      const key = project.employeeId.toString();
+      if (!byEmployee.has(key)) byEmployee.set(key, []);
+      byEmployee.get(key).push(project);
+    }
+
+    const year = resolveYear(req.query.year);
+    const yearsSet = new Set([new Date().getFullYear(), year]);
+    let totalRevenue = 0;
+    let totalBonus = 0;
+
+    const rows = employees.map((employee) => {
+      const own = byEmployee.get(employee._id.toString()) || [];
+      const summary = buildEmployeeSummary(employee, own, year);
+      for (const available of summary.availableYears) yearsSet.add(available);
+      totalRevenue += summary.totalRevenue;
+      totalBonus += summary.computed.bonus;
+      return {
+        id: employee._id.toString(),
+        name: employee.name,
+        projectCount: own.length,
+        activeCount: own.filter((project) => project.active !== false).length,
+        totalRevenue: summary.totalRevenue,
+        goal: summary.computed.thresholdValue,
+        bonus: summary.computed.bonus,
+        bonusStarted: summary.computed.bonusStarted,
+        remainingToBonus: summary.computed.remainingToBonus,
+        hireDate: summary.settings.hireDate,
+      };
+    });
+
+    res.json({
+      year,
+      availableYears: [...yearsSet].sort((a, b) => b - a),
+      totals: {
+        employees: rows.length,
+        revenue: round2(totalRevenue),
+        bonus: round2(totalBonus),
+      },
+      employees: rows,
     });
   } catch (err) {
     next(err);
