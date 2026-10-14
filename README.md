@@ -4,7 +4,8 @@ Web app that tracks employee performance, client revenue, and bonus earnings
 throughout the year.
 
 **Status:** auth, employee and project dashboards, monthly revenue tracking,
-the bonus dial with pacing, and CSV import. Productivity tracking is next.
+the bonus dial with pacing, CSV import, and shareable read-only reports.
+Productivity tracking is next.
 
 ## Stack
 
@@ -92,6 +93,41 @@ unrecognised is skipped and listed in the preview.
 - Comma, semicolon and tab delimiters are detected automatically, so you can
   also paste rows straight out of a spreadsheet.
 - Limits: 4 MB per file, 20,000 rows, 500 employees, 3,000 projects.
+
+## Sharing read-only reports
+
+**Share report** on an employee's dashboard mints a link like
+`/r/<token>` that anyone can open without an account. It shows that one
+employee's bonus report for one year — the dial, the pacing bar, the bonus
+terms, and the month and project breakdown — and nothing else.
+
+What the viewer gets:
+
+- No sign-in, no app shell, no editing: the page has no form, input or button.
+- Exactly the owner's figures. The dashboard and the shared report are drawn by
+  the same renderer (`public/report-view.js`) over the same server-side maths
+  (`lib/employeeSummary.js`), so they cannot drift apart.
+- Live revenue. Later edits to the months show up on the report; only the
+  *year* is pinned at the moment the link is created.
+- `noindex` and `no-referrer`, so the link stays out of search engines and is
+  not handed to other sites in a referer header.
+
+What the link does not expose: any other employee, any database id, the owner's
+email, or anything writable. The public payload is assembled field by field
+rather than reusing the signed-in response.
+
+### Managing links
+
+The share dialog lists every link for that employee with its year, expiry,
+view count and when it was last opened. Links can expire after 7, 30, 90 or
+365 days, or never. **✕** revokes one, which breaks the URL immediately;
+deleting an employee revokes theirs too. A revoked or expired link renders a
+plain "not available" page with no data on it. An account may hold 100 links at
+a time.
+
+The token is 32 random bytes (base64url) and is stored as-is so you can copy
+the link again later — treat the URL itself as the secret, the way you would a
+"anyone with the link" share elsewhere.
 
 ## Deploy (Render)
 

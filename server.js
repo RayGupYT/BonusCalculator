@@ -54,9 +54,18 @@ app.use('/api', (req, res, next) => {
 app.use('/api/auth', authRoutes);
 app.use('/api/employees', require('./routes/employees'));
 app.use('/api/import', require('./routes/import'));
+app.use('/api/shares', require('./routes/shares'));
+// Unauthenticated: the token in the URL is the credential.
+app.use('/api/public', require('./routes/publicReports'));
 
 app.use('/api', (req, res) => {
   res.status(404).json({ error: 'Not found' });
+});
+
+// Shared report links get their own page rather than the signed-in app, so a
+// viewer is never served the app shell or asked to log in.
+app.get('/r/:token', (req, res) => {
+  res.sendFile(path.join(__dirname, 'public', 'report.html'));
 });
 
 // Single-page frontend: send index.html for any other GET.

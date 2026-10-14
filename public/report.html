@@ -1,0 +1,105 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta name="color-scheme" content="light dark" />
+  <meta name="robots" content="noindex, nofollow" />
+  <!-- A shared link should not leak the report in a referer header. -->
+  <meta name="referrer" content="no-referrer" />
+  <title>Bonus report</title>
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>💠</text></svg>" />
+  <link rel="stylesheet" href="/styles.css" />
+</head>
+<body>
+
+  <header class="topbar">
+    <div class="topbar-brand"><span aria-hidden="true">💠</span> Bonus Calculator</div>
+    <div class="topbar-user">
+      <span class="report-badge">Read-only report</span>
+    </div>
+  </header>
+
+  <main class="home-wrap">
+    <p id="report-loading" class="empty-note">Loading report…</p>
+
+    <section class="card report-gone" id="report-error" hidden>
+      <h2 id="report-error-title">This report is not available</h2>
+      <p id="report-error-text" class="report-gone-text"></p>
+    </section>
+
+    <section class="card employee-dash" id="report-card" hidden>
+      <div class="employee-dash-head">
+        <div>
+          <p class="crumb" id="report-crumb">Bonus report</p>
+          <h2 class="project-title" id="report-title"></h2>
+        </div>
+        <div class="report-year" id="report-year"></div>
+      </div>
+
+      <div class="dial-wrap">
+        <svg id="dial" class="dial" viewBox="0 0 220 158" role="img"></svg>
+      </div>
+      <p class="dial-status" id="dial-status"></p>
+      <p class="proration-note" id="proration-note" hidden></p>
+
+      <div class="progress-block">
+        <h3 class="summary-h">Progress to bonus</h3>
+        <div class="progress-bar" id="progress-bar" role="img">
+          <div class="progress-clip">
+            <div class="progress-fill" id="progress-fill"></div>
+            <div class="progress-over" id="progress-over"></div>
+          </div>
+          <div class="progress-tick-goal" id="progress-tick-goal"></div>
+          <div class="progress-tick-pace" id="progress-tick-pace" hidden></div>
+        </div>
+        <div class="progress-labels">
+          <span>$0</span>
+          <span id="progress-end-label"></span>
+        </div>
+        <div class="kpi-row">
+          <div class="kpi">
+            <span class="kpi-label">Bonus goal (Dec 31)</span>
+            <span class="kpi-value" id="kpi-goal"></span>
+          </div>
+          <div class="kpi">
+            <span class="kpi-label" id="kpi-current-label">Revenue</span>
+            <span class="kpi-value" id="kpi-current"></span>
+          </div>
+          <div class="kpi">
+            <span class="kpi-label">Pace</span>
+            <span class="kpi-value" id="kpi-pace"></span>
+          </div>
+          <div class="kpi">
+            <span class="kpi-label">Of goal</span>
+            <span class="kpi-value" id="kpi-pct"></span>
+          </div>
+        </div>
+      </div>
+
+      <div class="report-terms" id="report-terms">
+        <h3 class="summary-h">Bonus terms</h3>
+        <ul class="summary-list" id="report-terms-list"></ul>
+      </div>
+
+      <div class="summary-cols">
+        <div>
+          <h3 class="summary-h">By month</h3>
+          <ul id="report-months" class="summary-list"></ul>
+          <p class="empty-note" id="report-months-empty" hidden>No revenue recorded yet</p>
+        </div>
+        <div>
+          <h3 class="summary-h">By project</h3>
+          <ul id="report-projects" class="summary-list"></ul>
+          <p class="empty-note" id="report-projects-empty" hidden>No projects yet</p>
+        </div>
+      </div>
+
+      <p class="report-foot" id="report-foot"></p>
+    </section>
+  </main>
+
+  <script src="/report-view.js"></script>
+  <script src="/report.js"></script>
+</body>
+</html>

@@ -152,6 +152,59 @@
       </form>
     </dialog>
 
+    <dialog id="share-dialog" class="share-dialog">
+      <form id="share-form" novalidate>
+        <h3>Share a read-only report</h3>
+        <p class="import-intro">
+          Anyone with the link can read <strong id="share-who"></strong>'s bonus report
+          for the year you choose — the dial, the pace, and the month and project
+          breakdown. They cannot sign in, change anything, or see your other employees.
+          Revenue stays live, so the report reflects later edits. Revoke a link whenever
+          you like.
+        </p>
+
+        <div class="share-fields">
+          <div class="field">
+            <label for="share-year">Report year</label>
+            <select id="share-year"></select>
+          </div>
+          <div class="field">
+            <label for="share-expiry">Link expires</label>
+            <select id="share-expiry">
+              <option value="0">Never</option>
+              <option value="7">In 7 days</option>
+              <option value="30">In 30 days</option>
+              <option value="90">In 90 days</option>
+              <option value="365">In a year</option>
+            </select>
+          </div>
+        </div>
+        <div class="field">
+          <label for="share-label">Label (optional — only you see it)</label>
+          <input id="share-label" type="text" maxlength="80" placeholder="e.g. Sent to Dana" />
+        </div>
+
+        <p id="share-error" class="form-error" role="alert" hidden></p>
+        <p id="share-note" class="save-note" hidden></p>
+
+        <div class="share-create-row">
+          <button type="submit" class="btn btn-primary btn-compact" id="share-create">
+            Create link
+          </button>
+        </div>
+
+        <div class="share-list-block">
+          <h4 class="summary-h">Links for this employee</h4>
+          <div id="share-list" class="share-list"></div>
+          <p id="share-empty" class="empty-note" hidden>No report links yet.</p>
+        </div>
+
+        <div class="import-actions">
+          <button type="button" class="btn btn-ghost btn-compact" id="share-close">Close</button>
+        </div>
+      </form>
+    </dialog>
+
     <!-- Page: employees hierarchy -->
     <main class="home-wrap" id="page-employees">
       <section class="page-head">
@@ -242,9 +295,10 @@
             <p class="crumb">Employee</p>
             <h2 class="project-title" id="employee-title"></h2>
           </div>
-          <div>
+          <div class="employee-dash-actions">
             <label class="visually-hidden" for="year-select">Year</label>
             <select id="year-select" class="year-select"></select>
+            <button type="button" class="btn btn-ghost btn-compact" id="btn-share">Share report</button>
           </div>
         </div>
 
@@ -335,6 +389,7 @@
     </main>
   </div>
 
+  <script src="/report-view.js"></script>
   <script src="/app.js"></script>
 </body>
 </html>

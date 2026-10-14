@@ -3,7 +3,9 @@ const mongoose = require('mongoose');
 
 const Employee = require('../models/Employee');
 const Project = require('../models/Project');
+const Share = require('../models/Share');
 const requireAuth = require('../middleware/auth');
+const { buildEmployeeSummary, round2 } = require('../lib/employeeSummary');
 
 const router = express.Router();
 
@@ -51,10 +53,6 @@ async function findOwnedProject(req, res) {
     return null;
   }
   return { employee, project };
-}
-
-function round2(value) {
-  return Math.round(value * 100) / 100;
 }
 
 function sortedRevenue(project) {
@@ -134,7 +132,12 @@ router.delete('/:employeeId', async (req, res, next) => {
     const employee = await findOwnedEmployee(req, res);
     if (!employee) return;
 
-    await Project.deleteMany({ employeeId: employee._id });
+    // Report links for this employee would otherwise linger, counting against
+    // the per-account cap and listing with no employee name.
+    await Promise.all([
+      Project.deleteMany({ employeeId: employee._id }),
+      Share.deleteMany({ employeeId: employee._id, userId: req.user._id }),
+    ]);
     await employee.deleteOne();
     res.json({ ok: true });
   } catch (err) {
@@ -298,91 +301,12 @@ router.get('/:employeeId/summary', async (req, res, next) => {
     const employee = await findOwnedEmployee(req, res);
     if (!employee) return;
 
-    const currentYear = new Date().getFullYear();
-    let year = Number.parseInt(req.query.year, 10);
-    if (!Number.isInteger(year) || year < 2000 || year > 2100) {
-      year = currentYear;
-    }
-
     const projects = await Project.find({
       employeeId: employee._id,
       userId: req.user._id,
     }).sort({ createdAt: 1 });
 
-    const monthTotals = new Map(); // month (1-12) -> total, within the selected year
-    const yearsSet = new Set([currentYear, year]);
-    let totalRevenue = 0;
-
-    const projectSummaries = projects.map((project) => {
-      let projectTotal = 0;
-      for (const entry of project.revenue) {
-        yearsSet.add(entry.year);
-        if (entry.year !== year) continue;
-        projectTotal += entry.amount;
-        monthTotals.set(entry.month, (monthTotals.get(entry.month) || 0) + entry.amount);
-      }
-      totalRevenue += projectTotal;
-      return {
-        id: project._id.toString(),
-        name: project.name,
-        active: project.active !== false,
-        total: round2(projectTotal),
-      };
-    });
-
-    const dialMin = employee.dialMin ?? 0;
-    const dialMax = employee.dialMax ?? 1000000;
-    const thresholdPct = employee.thresholdPct ?? 100;
-    const bonusRate = employee.bonusRate ?? 1.5;
-    const hireDate = employee.hireDate || null;
-
-    // Prorate the dial when the employee was hired during the viewed year:
-    // hired in July -> 6 of 12 months remain -> goals scale to 50%.
-    let prorationFactor = 1;
-    if (hireDate && hireDate.getUTCFullYear() === year) {
-      prorationFactor = (12 - hireDate.getUTCMonth()) / 12;
-    }
-
-    const effectiveMin = round2(dialMin * prorationFactor);
-    const effectiveMax = round2(dialMax * prorationFactor);
-
-    const total = round2(totalRevenue);
-    const thresholdValue = round2(
-      effectiveMin + (effectiveMax - effectiveMin) * (thresholdPct / 100)
-    );
-    const bonus = round2(Math.max(0, total - thresholdValue) * (bonusRate / 100));
-
-    res.json({
-      employee: { id: employee._id.toString(), name: employee.name },
-      year,
-      availableYears: [...yearsSet].sort((a, b) => b - a),
-      totalRevenue: total,
-      settings: {
-        dialMin,
-        dialMax,
-        thresholdPct,
-        bonusRate,
-        hireDate: hireDate ? hireDate.toISOString().slice(0, 10) : null,
-      },
-      computed: {
-        prorationFactor,
-        effectiveMin,
-        effectiveMax,
-        thresholdValue,
-        bonusStarted: total >= thresholdValue,
-        bonus,
-        remainingToBonus: round2(Math.max(0, thresholdValue - total)),
-        bonusRatePct: bonusRate,
-      },
-      monthlyTotals: [...monthTotals.entries()]
-        .sort((a, b) => a[0] - b[0])
-        .map(([month, monthTotal]) => ({
-          year,
-          month,
-          total: round2(monthTotal),
-        })),
-      projects: projectSummaries,
-    });
+    res.json(buildEmployeeSummary(employee, projects, req.query.year));
   } catch (err) {
     next(err);
   }

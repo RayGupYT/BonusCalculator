@@ -92,6 +92,19 @@
     dialHire: document.getElementById('dial-hire'),
     dialHint: document.getElementById('dial-hint'),
     dialSaveNote: document.getElementById('dial-save-note'),
+    btnShare: document.getElementById('btn-share'),
+    shareDialog: document.getElementById('share-dialog'),
+    shareForm: document.getElementById('share-form'),
+    shareWho: document.getElementById('share-who'),
+    shareYear: document.getElementById('share-year'),
+    shareExpiry: document.getElementById('share-expiry'),
+    shareLabel: document.getElementById('share-label'),
+    shareError: document.getElementById('share-error'),
+    shareNote: document.getElementById('share-note'),
+    shareCreate: document.getElementById('share-create'),
+    shareList: document.getElementById('share-list'),
+    shareEmpty: document.getElementById('share-empty'),
+    shareClose: document.getElementById('share-close'),
     employeeMonths: document.getElementById('employee-months'),
     employeeMonthsEmpty: document.getElementById('employee-months-empty'),
     employeeProjects: document.getElementById('employee-projects'),
@@ -101,26 +114,33 @@
   let mode = 'login'; // 'login' | 'signup'
   let currentProject = null; // { employeeId, projectId, revenue: [{year, month, amount}] }
   let currentEmployeeId = null;
+  let currentEmployeeSummary = null; // last summary rendered, for the share dialog
   let currentUser = null;
 
-  const money = new Intl.NumberFormat('en-US', {
-    style: 'currency',
-    currency: 'USD',
-  });
+  const { money, moneyCompact, monthLabel } = window.BonusReportView;
 
-  const moneyCompact = new Intl.NumberFormat('en-US', {
-    style: 'currency',
-    currency: 'USD',
-    notation: 'compact',
-    maximumFractionDigits: 2,
+  // The dial, pacing bar and breakdown lists are drawn by the same code that
+  // renders a shared read-only report.
+  const employeeReport = window.BonusReportView.create({
+    dial: els.dial,
+    dialStatus: els.dialStatus,
+    prorationNote: els.prorationNote,
+    progressBar: els.progressBar,
+    progressFill: els.progressFill,
+    progressOver: els.progressOver,
+    progressTickGoal: els.progressTickGoal,
+    progressTickPace: els.progressTickPace,
+    progressEndLabel: els.progressEndLabel,
+    kpiGoal: els.kpiGoal,
+    kpiCurrentLabel: els.kpiCurrentLabel,
+    kpiCurrent: els.kpiCurrent,
+    kpiPace: els.kpiPace,
+    kpiPct: els.kpiPct,
+    monthsList: els.employeeMonths,
+    monthsEmpty: els.employeeMonthsEmpty,
+    projectsList: els.employeeProjects,
+    projectsEmpty: els.employeeProjectsEmpty,
   });
-
-  function monthLabel(year, month) {
-    return new Date(year, month - 1, 1).toLocaleString('en-US', {
-      month: 'long',
-      year: 'numeric',
-    });
-  }
 
   // ---------- API helper ----------
 
@@ -254,6 +274,7 @@
   }
 
   function renderEmployeeDash(data) {
+    currentEmployeeSummary = data;
     els.employeeTitle.textContent = data.employee.name;
 
     els.yearSelect.replaceChildren(
@@ -266,10 +287,7 @@
       })
     );
 
-    renderDial(data);
-    renderDialStatus(data.computed);
-    renderProration(data);
-    renderProgress(data);
+    employeeReport.render(data);
 
     els.dialMin.value = String(data.settings.dialMin);
     els.dialMax.value = String(data.settings.dialMax);
@@ -278,243 +296,6 @@
     els.dialHire.value = data.settings.hireDate || '';
     els.dialSaveNote.hidden = true;
     updateDialHint();
-
-    els.employeeMonths.replaceChildren(
-      ...data.monthlyTotals.map((m) =>
-        summaryRow(monthLabel(m.year, m.month), money.format(m.total))
-      )
-    );
-    els.employeeMonthsEmpty.hidden = data.monthlyTotals.length > 0;
-
-    els.employeeProjects.replaceChildren(
-      ...data.projects.map((p) =>
-        summaryRow(p.name, money.format(p.total), p.active ? null : 'inactive')
-      )
-    );
-    els.employeeProjectsEmpty.hidden = data.projects.length > 0;
-  }
-
-  // ---------- Progress bar (goal pacing; percent may exceed 100) ----------
-
-  // Fraction of the earning window elapsed "today" for the viewed year.
-  // The window starts at the hire date when hired during that year.
-  function elapsedFraction(data) {
-    const now = new Date();
-    const year = data.year;
-    if (year < now.getFullYear()) return 1;
-    if (year > now.getFullYear()) return 0;
-
-    let windowStart = new Date(year, 0, 1);
-    const hire = data.settings.hireDate
-      ? new Date(`${data.settings.hireDate}T00:00:00`)
-      : null;
-    if (hire && hire.getFullYear() === year && hire > windowStart) {
-      windowStart = hire;
-    }
-    const windowEnd = new Date(year + 1, 0, 1);
-    const span = windowEnd - windowStart;
-    if (span <= 0) return 1;
-    return Math.min(1, Math.max(0, (now - windowStart) / span));
-  }
-
-  function renderProgress(data) {
-    const total = data.totalRevenue;
-    const goal = data.computed.thresholdValue;
-    const year = data.year;
-
-    els.kpiGoal.textContent = goal > 0 ? money.format(goal) : '—';
-    els.kpiCurrentLabel.textContent = `${year} revenue`;
-    els.kpiCurrent.textContent = money.format(total);
-
-    // Percent of goal — may exceed 100.
-    const pct = goal > 0 ? (total / goal) * 100 : null;
-    els.kpiPct.textContent = pct === null ? '—' : `${Math.round(pct)}%`;
-
-    // Pace: where they should be today to stay on track for Dec 31.
-    const elapsed = elapsedFraction(data);
-    const paceTarget = goal * elapsed;
-    const delta = total - paceTarget;
-    els.kpiPace.classList.remove('is-good', 'is-bad');
-    if (goal <= 0) {
-      els.kpiPace.textContent = '—';
-    } else if (elapsed === 0) {
-      els.kpiPace.textContent = `Starts in ${year}`;
-    } else if (elapsed === 1) {
-      if (total >= goal) {
-        els.kpiPace.textContent = 'Goal met';
-        els.kpiPace.classList.add('is-good');
-      } else {
-        els.kpiPace.textContent = `${money.format(goal - total)} short`;
-        els.kpiPace.classList.add('is-bad');
-      }
-    } else if (Math.abs(delta) < 0.5) {
-      els.kpiPace.textContent = 'On pace';
-    } else if (delta > 0) {
-      els.kpiPace.textContent = `${money.format(delta)} ahead`;
-      els.kpiPace.classList.add('is-good');
-    } else {
-      els.kpiPace.textContent = `${money.format(-delta)} behind`;
-      els.kpiPace.classList.add('is-bad');
-    }
-
-    // Bar domain stretches to cover overshoot: [0, max(goal, total)].
-    const domain = Math.max(goal, total, 1);
-    const fillPct = (Math.min(total, goal) / domain) * 100;
-    const overPct = total > goal ? ((total - goal) / domain) * 100 : 0;
-    const goalPct = (goal / domain) * 100;
-
-    els.progressFill.style.width = `${fillPct}%`;
-    els.progressOver.style.left = `${fillPct}%`;
-    els.progressOver.style.width = `${overPct}%`;
-
-    els.progressTickGoal.hidden = goal <= 0;
-    els.progressTickGoal.style.left = `${goalPct}%`;
-    els.progressTickGoal.title = `Bonus goal: ${money.format(goal)}`;
-
-    const showPace = goal > 0 && elapsed > 0 && elapsed < 1;
-    els.progressTickPace.hidden = !showPace;
-    if (showPace) {
-      els.progressTickPace.style.left = `${(paceTarget / domain) * 100}%`;
-      els.progressTickPace.title = `On-track target today: ${money.format(paceTarget)}`;
-    }
-
-    els.progressEndLabel.textContent = moneyCompact.format(domain);
-    els.progressBar.setAttribute(
-      'aria-label',
-      goal > 0
-        ? `${year} revenue ${money.format(total)} of ${money.format(goal)} bonus goal (${Math.round(pct)}%); ${els.kpiPace.textContent} versus today's on-track target`
-        : `${year} revenue ${money.format(total)}; no bonus goal configured`
-    );
-  }
-
-  function renderProration(data) {
-    const factor = data.computed.prorationFactor;
-    if (factor < 1 && data.settings.hireDate) {
-      const hired = new Date(`${data.settings.hireDate}T00:00:00`);
-      const hiredLabel = hired.toLocaleString('en-US', { month: 'long' });
-      els.prorationNote.textContent = `Goal prorated to ${Math.round(factor * 100)}% — hired ${hiredLabel} ${data.year}.`;
-      els.prorationNote.hidden = false;
-    } else {
-      els.prorationNote.hidden = true;
-    }
-  }
-
-  // ---------- Bonus dial (SVG gauge) ----------
-
-  const SVG_NS = 'http://www.w3.org/2000/svg';
-  const DIAL = { cx: 110, cy: 96, r: 78, start: -120, sweep: 240 };
-
-  function svgEl(name, attrs = {}) {
-    const node = document.createElementNS(SVG_NS, name);
-    for (const [key, value] of Object.entries(attrs)) {
-      node.setAttribute(key, value);
-    }
-    return node;
-  }
-
-  function dialPoint(angle, radius = DIAL.r) {
-    const rad = (angle * Math.PI) / 180;
-    return [
-      DIAL.cx + radius * Math.sin(rad),
-      DIAL.cy - radius * Math.cos(rad),
-    ];
-  }
-
-  function arcPath(a0, a1) {
-    const [x0, y0] = dialPoint(a0);
-    const [x1, y1] = dialPoint(a1);
-    const large = a1 - a0 > 180 ? 1 : 0;
-    return `M ${x0.toFixed(2)} ${y0.toFixed(2)} A ${DIAL.r} ${DIAL.r} 0 ${large} 1 ${x1.toFixed(2)} ${y1.toFixed(2)}`;
-  }
-
-  function renderDial(data) {
-    const { effectiveMin, effectiveMax } = data.computed;
-    const { thresholdPct } = data.settings;
-    const total = data.totalRevenue;
-    const span = effectiveMax - effectiveMin;
-    const pct = span > 0 ? Math.min(1, Math.max(0, (total - effectiveMin) / span)) : 0;
-    const tpct = Math.min(1, Math.max(0, thresholdPct / 100));
-    const angleAt = (p) => DIAL.start + DIAL.sweep * p;
-
-    const svg = els.dial;
-    svg.replaceChildren();
-    svg.setAttribute(
-      'aria-label',
-      `${data.year} revenue ${money.format(total)} on a scale from ${money.format(effectiveMin)} to ${money.format(effectiveMax)}; bonus threshold at ${money.format(data.computed.thresholdValue)}`
-    );
-
-    svg.append(svgEl('path', { d: arcPath(angleAt(0), angleAt(1)), class: 'dial-track' }));
-
-    if (pct > 0.002) {
-      svg.append(
-        svgEl('path', {
-          d: arcPath(angleAt(0), angleAt(Math.min(pct, tpct))),
-          class: 'dial-fill',
-        })
-      );
-    }
-    if (pct > tpct + 0.002) {
-      svg.append(
-        svgEl('path', { d: arcPath(angleAt(tpct), angleAt(pct)), class: 'dial-bonus' })
-      );
-    }
-
-    const [tx0, ty0] = dialPoint(angleAt(tpct), DIAL.r - 12);
-    const [tx1, ty1] = dialPoint(angleAt(tpct), DIAL.r + 12);
-    svg.append(
-      svgEl('line', {
-        x1: tx0.toFixed(2),
-        y1: ty0.toFixed(2),
-        x2: tx1.toFixed(2),
-        y2: ty1.toFixed(2),
-        class: 'dial-tick',
-      })
-    );
-
-    const value = svgEl('text', {
-      x: DIAL.cx,
-      y: 94,
-      'text-anchor': 'middle',
-      class: 'dial-value',
-    });
-    value.textContent = moneyCompact.format(total);
-    svg.append(value);
-
-    const sub = svgEl('text', {
-      x: DIAL.cx,
-      y: 114,
-      'text-anchor': 'middle',
-      class: 'dial-sub',
-    });
-    sub.textContent = `${data.year} revenue`;
-    svg.append(sub);
-
-    const [minX] = dialPoint(angleAt(0));
-    const [maxX] = dialPoint(angleAt(1));
-    const minLabel = svgEl('text', {
-      x: minX.toFixed(2),
-      y: 154,
-      'text-anchor': 'middle',
-      class: 'dial-minmax',
-    });
-    minLabel.textContent = moneyCompact.format(effectiveMin);
-    const maxLabel = svgEl('text', {
-      x: maxX.toFixed(2),
-      y: 154,
-      'text-anchor': 'middle',
-      class: 'dial-minmax',
-    });
-    maxLabel.textContent = moneyCompact.format(effectiveMax);
-    svg.append(minLabel, maxLabel);
-  }
-
-  function renderDialStatus(computed) {
-    els.dialStatus.classList.toggle('is-bonus', computed.bonusStarted);
-    if (computed.bonusStarted) {
-      els.dialStatus.textContent = `Bonus value: ${money.format(computed.bonus)} — earning ${computed.bonusRatePct}¢ per $1 above ${moneyCompact.format(computed.thresholdValue)}`;
-    } else {
-      els.dialStatus.textContent = `Bonus starts at ${money.format(computed.thresholdValue)} — ${money.format(computed.remainingToBonus)} to go`;
-    }
   }
 
   function readDialInputs() {
@@ -556,24 +337,6 @@
   function showEmployeeError(message) {
     els.employeeError.textContent = message;
     els.employeeError.hidden = false;
-  }
-
-  function summaryRow(label, value, note) {
-    const row = document.createElement('li');
-    const name = document.createElement('span');
-    name.className = 'summary-label';
-    name.textContent = label;
-    if (note) {
-      const noteEl = document.createElement('span');
-      noteEl.className = 'summary-note';
-      noteEl.textContent = note;
-      name.append(noteEl);
-    }
-    const val = document.createElement('span');
-    val.className = 'summary-value';
-    val.textContent = value;
-    row.append(name, val);
-    return row;
   }
 
   function setMode(next) {
@@ -1145,6 +908,185 @@
       showPwError(err.message);
     } finally {
       button.disabled = false;
+    }
+  });
+
+  // ---------- Share read-only reports ----------
+
+  function showShareError(message) {
+    els.shareError.textContent = message;
+    els.shareError.hidden = false;
+  }
+
+  function shareDateLabel(iso) {
+    return new Date(iso).toLocaleString('en-US', {
+      month: 'short',
+      day: 'numeric',
+      year: 'numeric',
+    });
+  }
+
+  function fullShareUrl(share) {
+    return `${window.location.origin}${share.url}`;
+  }
+
+  function shareRow(share) {
+    const row = document.createElement('div');
+    row.className = share.expired ? 'share-row is-expired' : 'share-row';
+
+    const head = document.createElement('div');
+    head.className = 'share-row-head';
+
+    const title = document.createElement('span');
+    title.className = 'share-row-title';
+    title.textContent = share.label || `${share.year} report`;
+    if (share.label) {
+      const year = document.createElement('span');
+      year.className = 'share-row-year';
+      year.textContent = String(share.year);
+      title.append(year);
+    }
+
+    const revoke = document.createElement('button');
+    revoke.type = 'button';
+    revoke.className = 'btn-icon';
+    revoke.textContent = '✕';
+    revoke.title = 'Revoke this link';
+    revoke.setAttribute('aria-label', `Revoke the link for ${share.label || share.year}`);
+    revoke.addEventListener('click', async () => {
+      if (!window.confirm('Revoke this link? Anyone holding it will lose access.')) return;
+      revoke.disabled = true;
+      try {
+        await api(`/api/shares/${share.id}`, { method: 'DELETE' });
+        els.shareError.hidden = true;
+        els.shareNote.textContent = 'Link revoked.';
+        els.shareNote.hidden = false;
+        await loadShares();
+      } catch (err) {
+        if (!handleSessionExpiry(err)) showShareError(err.message);
+        revoke.disabled = false;
+      }
+    });
+
+    head.append(title, revoke);
+
+    const urlRow = document.createElement('div');
+    urlRow.className = 'share-url-row';
+
+    const input = document.createElement('input');
+    input.type = 'text';
+    input.readOnly = true;
+    input.value = fullShareUrl(share);
+    input.setAttribute('aria-label', 'Report link');
+    input.addEventListener('focus', () => input.select());
+
+    const copy = document.createElement('button');
+    copy.type = 'button';
+    copy.className = 'btn btn-ghost btn-compact';
+    copy.textContent = 'Copy';
+    copy.addEventListener('click', async () => {
+      try {
+        await navigator.clipboard.writeText(input.value);
+        copy.textContent = 'Copied';
+        setTimeout(() => {
+          copy.textContent = 'Copy';
+        }, 1400);
+      } catch {
+        // Clipboard access can be refused; selecting the text is the fallback.
+        input.focus();
+        input.select();
+        copy.textContent = 'Press Ctrl+C';
+        setTimeout(() => {
+          copy.textContent = 'Copy';
+        }, 2200);
+      }
+    });
+
+    urlRow.append(input, copy);
+
+    const meta = document.createElement('p');
+    meta.className = 'share-row-meta';
+    const parts = [`Created ${shareDateLabel(share.createdAt)}`];
+    if (share.expired) parts.push('expired');
+    else if (share.expiresAt) parts.push(`expires ${shareDateLabel(share.expiresAt)}`);
+    else parts.push('no expiry');
+    parts.push(
+      share.viewCount === 0
+        ? 'not opened yet'
+        : `${share.viewCount} view${share.viewCount === 1 ? '' : 's'}, last ${shareDateLabel(share.lastViewedAt)}`
+    );
+    meta.textContent = parts.join(' · ');
+
+    row.append(head, urlRow, meta);
+    return row;
+  }
+
+  async function loadShares() {
+    if (!currentEmployeeId) return;
+    try {
+      const data = await api(`/api/shares?employeeId=${currentEmployeeId}`);
+      els.shareList.replaceChildren(...data.shares.map(shareRow));
+      els.shareEmpty.hidden = data.shares.length > 0;
+    } catch (err) {
+      if (!handleSessionExpiry(err)) showShareError(err.message);
+    }
+  }
+
+  els.btnShare.addEventListener('click', () => {
+    if (!currentEmployeeId || !currentEmployeeSummary) return;
+
+    els.shareForm.reset();
+    els.shareError.hidden = true;
+    els.shareNote.hidden = true;
+    els.shareWho.textContent = currentEmployeeSummary.employee.name;
+
+    // Offer the same years the dashboard offers, defaulting to the one on screen.
+    els.shareYear.replaceChildren(
+      ...currentEmployeeSummary.availableYears.map((year) => {
+        const option = document.createElement('option');
+        option.value = String(year);
+        option.textContent = String(year);
+        option.selected = year === currentEmployeeSummary.year;
+        return option;
+      })
+    );
+
+    els.shareList.replaceChildren();
+    els.shareEmpty.hidden = true;
+    els.shareDialog.showModal();
+    loadShares();
+  });
+
+  els.shareClose.addEventListener('click', () => {
+    els.shareDialog.close();
+  });
+
+  els.shareForm.addEventListener('submit', async (event) => {
+    event.preventDefault();
+    if (!currentEmployeeId) return;
+
+    els.shareError.hidden = true;
+    els.shareNote.hidden = true;
+    els.shareCreate.disabled = true;
+    try {
+      const expiresInDays = Number(els.shareExpiry.value);
+      await api('/api/shares', {
+        method: 'POST',
+        body: {
+          employeeId: currentEmployeeId,
+          year: Number(els.shareYear.value),
+          label: els.shareLabel.value.trim(),
+          expiresInDays: expiresInDays === 0 ? null : expiresInDays,
+        },
+      });
+      els.shareLabel.value = '';
+      els.shareNote.textContent = 'Link created — copy it below.';
+      els.shareNote.hidden = false;
+      await loadShares();
+    } catch (err) {
+      if (!handleSessionExpiry(err)) showShareError(err.message);
+    } finally {
+      els.shareCreate.disabled = false;
     }
   });
 
